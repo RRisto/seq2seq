@@ -1,3 +1,4 @@
+import collections
 import os
 import re
 from concurrent.futures.process import ProcessPoolExecutor
@@ -89,7 +90,9 @@ class Tokenizer():
             return sum(e.map(Tokenizer.proc_all, ss, [lang]*len(ss)), [])
 
 
-sentences=['mis see on ', 'kes see veel on']
+sentences=['mis see on', 'kes see veel on']
 
 toks=Tokenizer.proc_all_mp(partition_by_cores(sentences))
 print(toks)
+
+
