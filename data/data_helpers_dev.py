@@ -1,5 +1,6 @@
 from torch.utils.data import Dataset, DataLoader
 import torch
+import numpy as np
 from dev import Tokenizer, partition_by_cores
 
 SOS_token = 0
@@ -59,3 +60,6 @@ class Seq2SeqData(Dataset):
 
     def __len__(self):
         return len(self.x)
+
+
+
