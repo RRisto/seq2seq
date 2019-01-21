@@ -89,7 +89,7 @@ teacher_forcing_ratio = 0.5
 learning_rate = 0.0001
 decoder_learning_ratio = 5.0
 # n_epochs = 50000
-n_epochs = 2
+n_epochs = 5
 epoch = 0
 # plot_every = 20
 plot_every = 2000
@@ -153,6 +153,8 @@ while epoch < n_epochs:
 
         j+=1
 
+
+    val_losses=[]
     for val_input_batches, val_input_lengths, val_target_batches, val_target_lengths in valid_dataloader:
         if val_input_batches.size()[1]!=batch_size*2:
             continue
@@ -169,33 +171,50 @@ while epoch < n_epochs:
             decoder_input = decoder_input.cuda()
 
         # Store output words and attention states
-        decoded_words = []
-        decoder_attentions = torch.zeros(MAX_LENGTH + 1, MAX_LENGTH + 1)
+        #decoded_words = []
+        decoded_words = [[]]*batch_size*2
+        #decoder_attentions = torch.zeros(MAX_LENGTH + 1, MAX_LENGTH + 1)
+        decoder_attentions = torch.zeros(batch_size*2, MAX_LENGTH + 1, MAX_LENGTH + 1)
 
         # Run through decoder
+        #todo somehow have to evaluate loss too here!
+        all_decoder_outputs = torch.zeros(max_target_length, batch_size*2, decoder.output_size)
         for di in range(MAX_LENGTH):
             decoder_output, decoder_hidden, decoder_attention = decoder(
                 decoder_input, decoder_hidden, encoder_outputs
             )
+            all_decoder_outputs[di]=decoder_output
             #if using batch have to fix it
-            decoder_attentions[di, :decoder_attention.size(2)] += decoder_attention.squeeze(0).squeeze(0).cpu().data
+            #decoder_attentions[di, :decoder_attention.size(2)] += decoder_attention.squeeze(0).squeeze(0).cpu().data
+            decoder_attentions[:, di, :decoder_attention.size(2)] += decoder_attention.squeeze(1).cpu().data
 
             # Choose top word from output
             topv, topi = decoder_output.data.topk(1)
-            ni = topi[0][0]
-            if ni == EOS_token:
-                decoded_words.append('<EOS>')
-                break
-            else:
-                decoded_words.append(output_lang.index2word[ni.item()])  # another change
+            for i in range(len(topv)):
+                ni = topi[i][0]
+                if ni == EOS_token:
+                    decoded_words.append('<EOS>')
+                    #break
+                else:
+                    #decoded_words[i].append(output_lang.index2word[ni.item()])  # another change
+                    decoded_words[i].append(data_manager.seq_y.vocab.itos[ni.item()])  # another change
 
             # Next input is chosen word
-            decoder_input = torch.LongTensor([ni])
-            if USE_CUDA: decoder_input = decoder_input.cuda()
+            #decoder_input = torch.LongTensor([ni])
+            decoder_input = torch.LongTensor(topi.squeeze())
+            if USE_CUDA:
+                decoder_input = decoder_input.cuda()
+
+            with torch.no_grad():
+                loss = masked_cross_entropy(
+                    all_decoder_outputs.transpose(0, 1).contiguous(),  # -> batch x seq
+                    val_target_batches.transpose(0, 1).contiguous(),  # -> batch x seq
+                    val_target_lengths, USE_CUDA
+                )
 
         # Set back to training mode
         encoder.train(True)
         decoder.train(True)
 
       #  if epoch % evaluate_every == 0:
-       #     evaluate_randomly(pairs, MAX_LENGTH, input_lang, output_lang, SOS_token, EOS_token, encoder, decoder, USE_CUDA)
+       #     evaluate_randomly(pairs, MAX_LENGTH, input_lang, output_lang, SOS_token, EOS_token, encoder, decoder, USE_CUDA)topi[i]
