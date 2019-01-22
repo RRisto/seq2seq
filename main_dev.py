@@ -94,9 +94,9 @@ epoch = 0
 # plot_every = 20
 plot_every = 2000
 # print_every = 100
-print_every = 500
+print_every = 1
 # evaluate_every = 1000
-evaluate_every = 300
+evaluate_every = 1
 
 # Initialize models
 encoder = EncoderRNN(len(data_manager.seq_x.vocab.itos), hidden_size, n_layers, dropout=dropout)
@@ -125,7 +125,7 @@ while epoch < n_epochs:
     # Get training data for this cycle
     j=0
     for input_batches, input_lengths, target_batches, target_lengths in trn_dataloader:
-        print(j)
+        #print(j)
         #my dirty quick fix, last batch usualyy not full size this avoids error
         if input_batches.size()[1]!=batch_size:
             continue
@@ -144,12 +144,12 @@ while epoch < n_epochs:
 
         #     job.record(epoch, loss)
 
-        if epoch % print_every == 0:
-            #         pdb.set_trace()
-            print_loss_avg = print_loss_total / print_every
-            print_loss_total = 0
-            print_summary = f'{time_since(start, epoch / n_epochs)} ({epoch} {epoch / n_epochs * 100}%) {print_loss_avg}'
-            print(print_summary)
+    if epoch % print_every == 0:
+        #         pdb.set_trace()
+        print_loss_avg = print_loss_total / print_every
+        print_loss_total = 0
+        print_summary = f'{time_since(start, epoch / n_epochs)} ({epoch} {epoch / n_epochs * 100}%) {print_loss_avg}'
+        print(print_summary)
 
         j+=1
 
@@ -177,9 +177,12 @@ while epoch < n_epochs:
         decoder_attentions = torch.zeros(batch_size*2, MAX_LENGTH + 1, MAX_LENGTH + 1)
 
         # Run through decoder
-        #todo somehow have to evaluate loss too here!
-        all_decoder_outputs = torch.zeros(max_target_length, batch_size*2, decoder.output_size)
-        for di in range(MAX_LENGTH):
+
+        val_target_max_len=max(val_target_lengths)
+        # todo somehow have to evaluate loss too here!
+        all_decoder_outputs = torch.zeros(val_target_max_len, batch_size * 2, decoder.output_size)
+
+        for di in range(val_target_max_len):
             decoder_output, decoder_hidden, decoder_attention = decoder(
                 decoder_input, decoder_hidden, encoder_outputs
             )
