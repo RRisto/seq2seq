@@ -1,15 +1,15 @@
-import math
 import time
 
 
-def as_minutes(s):
-    m = math.floor(s / 60)
-    s -= m * 60
-    return f'{m}m {round(s, 2)}s'
+def time_since(start, end):
+    hours, rem = divmod(end - start, 3600)
+    minutes, seconds = divmod(rem, 60)
+    return hours, minutes, seconds
 
-def time_since(since, percent):
-    now = time.time()
-    s = now - since
-    es = s / (percent)
-    rs = es - s
-    return f'{as_minutes(s)} - {as_minutes(rs)}'
+def print_summary(start, epoch, epochs, loss_train, loss_valid):
+    end=time.time()
+    hours, minutes, seconds =time_since(start, end)
+    summary=f'{round(hours)}:{round(minutes)}:{round(seconds,2)} ({epoch + 1} {(epoch + 1) / epochs * 100}%) ' \
+        f'loss train: {round(loss_train, 3)} loss valid:{round(loss_valid, 3)}'
+    print(summary)
+
