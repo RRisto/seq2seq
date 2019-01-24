@@ -114,7 +114,7 @@ def valid_batch(encoder, decoder, val_input_batches, val_input_lengths, val_targ
 
     # Create starting vectors for decoder
     # decoder_input = torch.LongTensor([SOS_token])  # SOS
-    decoder_input = torch.LongTensor([SOS_token] * batch_size * 2)  # SOS
+    decoder_input = torch.LongTensor([SOS_token] * batch_size)  # SOS
     decoder_hidden = encoder_hidden[:decoder.n_layers]  # Use last (forward) hidden state from encoder
 
     if USE_CUDA:
@@ -122,13 +122,13 @@ def valid_batch(encoder, decoder, val_input_batches, val_input_lengths, val_targ
 
     # Store output words and attention states
     # decoded_words = []
-    decoded_words = [[]] * batch_size * 2
+    decoded_words = [[]] * batch_size
     # decoder_attentions = torch.zeros(MAX_LENGTH + 1, MAX_LENGTH + 1)
-    decoder_attentions = torch.zeros(batch_size * 2, MAX_LENGTH + 1, MAX_LENGTH + 1)
+    decoder_attentions = torch.zeros(batch_size, MAX_LENGTH + 1, MAX_LENGTH + 1)
 
     # Run through decoder
     val_target_max_len = max(val_target_lengths)
-    all_decoder_outputs = torch.zeros(val_target_max_len, batch_size * 2, decoder.output_size)
+    all_decoder_outputs = torch.zeros(val_target_max_len, batch_size, decoder.output_size)
 
     for di in range(val_target_max_len):
         decoder_output, decoder_hidden, decoder_attention = decoder(
@@ -172,14 +172,16 @@ def fit(epochs, encoder, encoder_optimizer, decoder, decoder_optimizer, batch_si
         start = time.time()
         loss_total_train = 0
         nbatches_train=0
+        train_batch_size=batch_size
         for input_batches, input_lengths, target_batches, target_lengths in train_dl:
             # my dirty quick fix, last batch usually not full size this avoids error
             if input_batches.size()[1] != batch_size:
-                continue
+                #continue
+                train_batch_size=input_batches.size()[1]
 
             loss, ec, dc = train_batch(
                 input_batches, input_lengths, target_batches, target_lengths, encoder, decoder, encoder_optimizer,
-                decoder_optimizer, batch_size, clip, SOS_token, USE_CUDA, loss_func)
+                decoder_optimizer, train_batch_size, clip, SOS_token, USE_CUDA, loss_func)
 
             nbatches_train+=1
             loss_total_train += loss
@@ -191,17 +193,23 @@ def fit(epochs, encoder, encoder_optimizer, decoder, decoder_optimizer, batch_si
         decoder.train(False)
         loss_total_valid = 0
         nbatches_valid = 0
+        valid_batch_size=batch_size*2 #no need to compute gradient, make batch bigger
         for val_input_batches, val_input_lengths, val_target_batches, val_target_lengths in valid_dl:
-            if val_input_batches.size()[1] != batch_size * 2: #not elegant
-                continue
+            if val_input_batches.size()[1] != valid_batch_size:
+                #continue
+                valid_batch_size=val_input_batches.size()[1]
             loss=valid_batch(encoder, decoder, val_input_batches, val_input_lengths, val_target_batches, val_target_lengths,
-                        batch_size, MAX_LENGTH, SOS_token, USE_CUDA)
+                        valid_batch_size, MAX_LENGTH, SOS_token, USE_CUDA)
             nbatches_valid+=1
             loss_total_valid+=loss
 
         valid_loss_avg=loss_total_valid/nbatches_valid
         print_summary(start, epoch, epochs, train_loss_avg.item(), valid_loss_avg.item())
 
+
+def predict(text, encoder, decoder):
+    encoder.train(False)
+    decoder.train(False)
 
 
 #test
