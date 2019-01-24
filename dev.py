@@ -167,6 +167,12 @@ class SeqData():
         self.vocab=vocab
         self.toks_id=toks_id
 
+    def numericalize(self, text):
+        text=add_special_strings([text], EOS, BOS)
+        toks=self.tokenizer.proc_all_mp([[text[0]]])
+        toks=self.vocab.numericalize(toks[0])
+        return toks
+
     @classmethod
     def create(cls, texts, max_vocab=60000,  min_freq=1,TOK_XX=[EOS, BOS, UNK], tokenizer=Tokenizer):
         texts=add_special_strings(texts, EOS, BOS)

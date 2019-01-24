@@ -2,7 +2,7 @@ import time
 import torch.nn as nn
 from torch import optim
 
-from dev import Seq2SeqDataManager
+from dev import Seq2SeqDataManager, to_padded_tensor
 from masked_cross_entropy import *
 from decoder import LuongAttnDecoderRNN
 from encoder import EncoderRNN
@@ -207,10 +207,37 @@ def fit(epochs, encoder, encoder_optimizer, decoder, decoder_optimizer, batch_si
         print_summary(start, epoch, epochs, train_loss_avg.item(), valid_loss_avg.item())
 
 
-def predict(text, encoder, decoder):
+def predict(text, encoder, decoder, data_manager, max_length=10):
     encoder.train(False)
     decoder.train(False)
+    input_toks_id=data_manager.seq_x.numericalize(text)
+    input_batch, input_length=to_padded_tensor([input_toks_id])
+
+    encoder_outputs, encoder_hidden = encoder(input_batch, input_length, None)
+    decoder_input = torch.LongTensor([SOS_token])  # SOS
+    decoder_hidden = encoder_hidden[:decoder.n_layers]
+
+    decoded_toks_id = []
+    for di in range(max_length):
+        decoder_output, decoder_hidden, decoder_attention = decoder(
+            decoder_input, decoder_hidden, encoder_outputs
+        )
+        #decoder_attentions[di, :decoder_attention.size(2)] += decoder_attention.squeeze(0).squeeze(0).cpu().data
+
+        # Choose top word from output
+        topv, topi = decoder_output.data.topk(1)
+        ni = topi[0][0]
+        if ni == EOS_token:
+            decoded_toks_id.append(ni.item())
+            break
+        else:
+            decoded_toks_id.append(ni.item())
+    #turn them into words
+    decoded_toks_id
+
 
 
 #test
 fit(2, encoder, encoder_optimizer, decoder, decoder_optimizer, batch_size, clip, masked_cross_entropy, train_dl=train_dataloader, valid_dl=valid_dataloader)
+
+predict('i love you', encoder, decoder, data_manager)
