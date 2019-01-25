@@ -17,7 +17,8 @@ MAX_LENGTH = 25
 MIN_COUNT = 5
 
 ## Get data
-data_manager=Seq2SeqDataManager.create_from_txt('data/eng-fra_sub.txt')
+#data_manager=Seq2SeqDataManager.create_from_txt('data/eng-fra_sub.txt')
+data_manager=Seq2SeqDataManager.create_from_txt('data/eng-fra.txt')
 ##test
 bs = 10
 train_dataloader, valid_dataloader=data_manager.get_dataloaders(batch_size=bs)
@@ -31,7 +32,7 @@ hidden_size = 50
 n_layers = 2
 dropout = 0.1
 #batch_size = 100
-batch_size = 10
+batch_size = 20
 
 # Configure training/optimization
 clip = 50.0
@@ -39,7 +40,7 @@ teacher_forcing_ratio = 0.5
 learning_rate = 0.0001
 decoder_learning_ratio = 5.0
 # n_epochs = 50000
-n_epochs = 5
+n_epochs = 7
 epoch = 0
 # plot_every = 20
 plot_every = 2000
@@ -233,11 +234,13 @@ def predict(text, encoder, decoder, data_manager, max_length=10):
         else:
             decoded_toks_id.append(ni.item())
     #turn them into words
-    decoded_toks_id
+    text=data_manager.seq_y.textify(decoded_toks_id)
+    return text
 
 
 
 #test
-fit(2, encoder, encoder_optimizer, decoder, decoder_optimizer, batch_size, clip, masked_cross_entropy, train_dl=train_dataloader, valid_dl=valid_dataloader)
+fit(n_epochs, encoder, encoder_optimizer, decoder, decoder_optimizer, batch_size, clip, masked_cross_entropy, train_dl=train_dataloader, valid_dl=valid_dataloader)
 
-predict('i love you', encoder, decoder, data_manager)
+predicted_text=predict('I loved you.', encoder, decoder, data_manager)
+print(predicted_text)

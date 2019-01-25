@@ -2,14 +2,13 @@ import collections
 import os, torch
 import re
 import unicodedata
-from concurrent.futures.process import ProcessPoolExecutor
 from concurrent.futures import ThreadPoolExecutor
 import numpy as np
 import pandas as pd
 
 import spacy as spacy
 from spacy.symbols import ORTH
-from torch.utils.data import Dataset, TensorDataset, DataLoader
+from torch.utils.data import Dataset, DataLoader
 
 TOK_XX=['<eos>','<bos>','<unk>']
 
@@ -173,6 +172,35 @@ class SeqData():
         toks=self.vocab.numericalize(toks[0])
         return toks
 
+    def textify(self, tok_ids, sep=' '):
+        text=self.vocab.textify(tok_ids, sep=' ')
+        return text
+
+    def toks_lens(self):
+        return np.array([len(toks) for toks in self.toks_id])
+
+    def ids_to_keep(self, max_len, min_len=1):
+        self.min_len=min_len
+        self.max_len=max_len
+        toks_len=self.toks_lens()
+        idx_to_keep=(toks_len>=self.min_len)&(toks_len<=self.max_len)
+        return idx_to_keep
+
+    def remove(self, max_len=None, min_len=None, idx_to_keep=None):
+        #reomve by length or indexes (boolean)
+        if max_len is not None and min_len is not None and idx_to_keep is None:
+            idx_to_keep = self.ids_to_keep(max_len, min_len)
+
+        if idx_to_keep is not None:
+            n_seq_original=len(self.toks_id)
+            self.toks_id=self.toks_id[idx_to_keep]
+            print(f'kept {sum(idx_to_keep)} sequences from {n_seq_original} sequences')
+        else:
+            print('You must have max_len and min_len values set or idx_to_keep set')
+
+
+
+
     @classmethod
     def create(cls, texts, max_vocab=60000,  min_freq=1,TOK_XX=[EOS, BOS, UNK], tokenizer=Tokenizer):
         texts=add_special_strings(texts, EOS, BOS)
@@ -286,36 +314,34 @@ class Seq2SeqDataManager():
 
         train_dataset=Seq2SeqDataset(self.seq_x.toks_id[self.train_idxs], self.seq_y.toks_id[self.train_idxs])
         valid_dataset=Seq2SeqDataset(self.seq_x.toks_id[self.valid_idxs], self.seq_y.toks_id[self.valid_idxs])
-        #train_dataset=TensorDataset(self.seq_x_tensor[self.train_idxs], self.seq_y_tensor[self.train_idxs])
-        #valid_dataset=TensorDataset(self.seq_x_tensor[self.valid_idxs], self.seq_y_tensor[self.valid_idxs])
-        train_dataloader=DataLoader(train_dataset, batch_size=self.batch_size,collate_fn=collate_fn)
+
+        train_dataloader=DataLoader(train_dataset, batch_size=self.batch_size,collate_fn=collate_fn, shuffle=True)
         valid_dataloader=DataLoader(valid_dataset, batch_size=self.batch_size*2, collate_fn=collate_fn)
         return train_dataloader, valid_dataloader
 
     @classmethod
-    def create(cls, texts_x, texts_y, min_freq=1, max_vocab=60000, TOK_XX=[EOS, BOS, UNK], tokenizer=Tokenizer, valid_perc=0.1):
+    def create(cls, texts_x, texts_y, min_freq=2, max_vocab=60000, TOK_XX=[EOS, BOS, UNK], tokenizer=Tokenizer, valid_perc=0.1):
         seq_x = SeqData.create(texts_x, max_vocab, min_freq, TOK_XX, tokenizer)
         seq_y = SeqData.create(texts_y, max_vocab, min_freq, TOK_XX, tokenizer)
         if len(seq_y.toks_id)!=len(seq_x.toks_id):
             print('source and target sequences have different lengths')
             return
-        #seq_x_tensor, lens_x=to_padded_tensor(seq_x.toks_id)
-        #seq_y_tensor, lens_y=to_padded_tensor(seq_y.toks_id)
-        return cls(texts_x, texts_y, seq_x, seq_y, min_freq, max_vocab,
-                   TOK_XX, tokenizer, valid_perc)
-        #return cls(texts_x, texts_y, seq_x, seq_y,seq_x_tensor, lens_x, seq_y_tensor, lens_y, min_freq, max_vocab,
-         #          TOK_XX, tokenizer, valid_perc)
+        return cls(texts_x, texts_y, seq_x, seq_y, min_freq, max_vocab, TOK_XX, tokenizer, valid_perc)
+
     @classmethod
-    def create_from_txt(cls, filename, min_freq=1, max_vocab=60000, TOK_XX=[EOS, BOS, UNK], tokenizer=Tokenizer, valid_perc=0.1):
+    def create_from_txt(cls, filename, min_freq=2, max_vocab=60000, min_ntoks=2, max_ntoks=5, TOK_XX=[EOS, BOS, UNK],
+                        tokenizer=Tokenizer, valid_perc=0.1):
         pairs=read_pairs_txt(filename)
         texts_x, texts_y=zip(*pairs)
         seq_x = SeqData.create(texts_x, max_vocab, min_freq, TOK_XX, tokenizer)
         seq_y = SeqData.create(texts_y, max_vocab, min_freq, TOK_XX, tokenizer)
+        idxs_to_keep=seq_x.ids_to_keep(max_ntoks, min_ntoks)
+        seq_x.remove(idx_to_keep=idxs_to_keep)
+        seq_y.remove(idx_to_keep=idxs_to_keep)
         if len(seq_y.toks_id) != len(seq_x.toks_id):
             print('source and target sequences have different lengths')
             return
-        return cls(texts_x, texts_y, seq_x, seq_y, min_freq, max_vocab,
-                   TOK_XX, tokenizer, valid_perc)
+        return cls(texts_x, texts_y, seq_x, seq_y, min_freq, max_vocab, TOK_XX, tokenizer, valid_perc)
 
 
 input_sentences=['mis see on', 'kes see veel on', 'miks on', 'kas on', 'kas on', 'kes on ','mis see on', 'kes see veel on', 'miks on', 'kas on', 'kas on', 'kes on ']
