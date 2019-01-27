@@ -9,19 +9,24 @@ from encoder import EncoderRNN
 from utils import print_summary
 
 USE_CUDA = False
-PAD_token = 0
-SOS_token = 1
-EOS_token = 2
+PAD_token = -1
+#SOS_token = 1
+SOS_token = 0
+#EOS_token = 2
+EOS_token = 1
 MIN_LENGTH = 3
-MAX_LENGTH = 25
+#MAX_LENGTH = 25
+MAX_LENGTH = 6
 MIN_COUNT = 5
 
 ## Get data
 #data_manager=Seq2SeqDataManager.create_from_txt('data/eng-fra_sub.txt')
-data_manager=Seq2SeqDataManager.create_from_txt('data/eng-fra.txt')
+data_manager=Seq2SeqDataManager.create_from_txt('data/eng-fra_sub.txt')
+#data_manager=Seq2SeqDataManager.create_from_txt('data/eng-fra.txt', min_ntoks=3, max_ntoks=10)
 ##test
-bs = 10
-train_dataloader, valid_dataloader=data_manager.get_dataloaders(batch_size=bs)
+train_batch_size = 100
+valid_batch_size=100
+train_dataloader, valid_dataloader=data_manager.get_dataloaders(train_batch_size=train_batch_size, valid_batch_size=valid_batch_size)
 
 
 ##model conf
@@ -32,15 +37,16 @@ hidden_size = 50
 n_layers = 2
 dropout = 0.1
 #batch_size = 100
-batch_size = 20
+
 
 # Configure training/optimization
 clip = 50.0
 teacher_forcing_ratio = 0.5
+#learning_rate = 0.0001
 learning_rate = 0.0001
 decoder_learning_ratio = 5.0
 # n_epochs = 50000
-n_epochs = 7
+n_epochs = 20
 epoch = 0
 # plot_every = 20
 plot_every = 2000
@@ -50,12 +56,13 @@ plot_every = 2000
 evaluate_every = 1
 
 # Initialize models
-encoder = EncoderRNN(len(data_manager.seq_x.vocab.itos), hidden_size, n_layers, dropout=dropout)
-decoder = LuongAttnDecoderRNN(attn_model, hidden_size, len(data_manager.seq_y.vocab.itos), USE_CUDA, n_layers, dropout=dropout)
+encoder = EncoderRNN(len(data_manager.train_seq2seq.seq_x.vocab.itos), hidden_size, n_layers, dropout=dropout)
+decoder = LuongAttnDecoderRNN(attn_model, hidden_size, len(data_manager.train_seq2seq.seq_y.vocab.itos), USE_CUDA, n_layers, dropout=dropout)
 
 # Initialize optimizers and criterion
 encoder_optimizer = optim.Adam(encoder.parameters(), lr=learning_rate)
 decoder_optimizer = optim.Adam(decoder.parameters(), lr=learning_rate * decoder_learning_ratio)
+#decoder_optimizer = optim.Adam(decoder.parameters(), lr=learning_rate)
 criterion = nn.CrossEntropyLoss()
 
 ##train helper
@@ -83,9 +90,12 @@ def train_batch(input_batches, input_lengths, target_batches, target_lengths, en
 
     # Run through decoder one time step at a time
     for t in range(max_target_length):
-        decoder_output, decoder_hidden, decoder_attn = decoder(
-            decoder_input, decoder_hidden, encoder_outputs
-        )
+        try:
+            decoder_output, decoder_hidden, decoder_attn = decoder(
+                decoder_input, decoder_hidden, encoder_outputs
+            )
+        except Exception as e:
+            mure=1
 
         all_decoder_outputs[t] = decoder_output
         decoder_input = target_batches[t]  # Next input is current target
@@ -110,26 +120,27 @@ def train_batch(input_batches, input_lengths, target_batches, target_lengths, en
 
 
 def valid_batch(encoder, decoder, val_input_batches, val_input_lengths, val_target_batches, val_target_lengths,
-          batch_size, MAX_LENGTH, SOS_token, USE_CUDA):
+                valid_batch_size, MAX_LENGTH, SOS_token, USE_CUDA):
     encoder_outputs, encoder_hidden = encoder(val_input_batches, val_input_lengths, None)
 
     # Create starting vectors for decoder
     # decoder_input = torch.LongTensor([SOS_token])  # SOS
-    decoder_input = torch.LongTensor([SOS_token] * batch_size)  # SOS
+    decoder_input = torch.LongTensor([SOS_token] * valid_batch_size)  # SOS
     decoder_hidden = encoder_hidden[:decoder.n_layers]  # Use last (forward) hidden state from encoder
 
     if USE_CUDA:
         decoder_input = decoder_input.cuda()
 
-    # Store output words and attention states
-    # decoded_words = []
-    decoded_words = [[]] * batch_size
-    # decoder_attentions = torch.zeros(MAX_LENGTH + 1, MAX_LENGTH + 1)
-    decoder_attentions = torch.zeros(batch_size, MAX_LENGTH + 1, MAX_LENGTH + 1)
-
     # Run through decoder
     val_target_max_len = max(val_target_lengths)
-    all_decoder_outputs = torch.zeros(val_target_max_len, batch_size, decoder.output_size)
+    all_decoder_outputs = torch.zeros(val_target_max_len, valid_batch_size, decoder.output_size)
+
+    # Store output words and attention states
+    # decoded_words = []
+    decoded_words = [[]] * valid_batch_size
+    # decoder_attentions = torch.zeros(MAX_LENGTH + 1, MAX_LENGTH + 1)
+    #decoder_attentions = torch.zeros(valid_batch_size, MAX_LENGTH + 1, MAX_LENGTH + 1)
+    decoder_attentions = torch.zeros(valid_batch_size, val_target_max_len + 1, val_target_max_len + 1)
 
     for di in range(val_target_max_len):
         decoder_output, decoder_hidden, decoder_attention = decoder(
@@ -141,11 +152,11 @@ def valid_batch(encoder, decoder, val_input_batches, val_input_lengths, val_targ
         topv, topi = decoder_output.data.topk(1)
         for i in range(len(topv)):
             ni = topi[i][0]
-            if ni == EOS_token:
-                decoded_words.append('<EOS>')
+            if ni.item() == EOS_token:
+                decoded_words[i].append('<eos>')
                 # break
             else:
-                decoded_words[i].append(data_manager.seq_y.vocab.itos[ni.item()])  # another change
+                decoded_words[i].append(data_manager.train_seq2seq.seq_y.vocab.itos[ni.item()])  # another change
         # Next input is chosen word
         decoder_input = torch.LongTensor(topi.squeeze())
         if USE_CUDA:
@@ -161,7 +172,7 @@ def valid_batch(encoder, decoder, val_input_batches, val_input_lengths, val_targ
     return loss
 
 
-def fit(epochs, encoder, encoder_optimizer, decoder, decoder_optimizer, batch_size, clip, loss_func=masked_cross_entropy,
+def fit(epochs, encoder, encoder_optimizer, decoder, decoder_optimizer, batch_size,valid_batch_size, clip, loss_func=masked_cross_entropy,
         train_dl=None, valid_dl=None):
     eca = 0
     dca = 0
@@ -177,7 +188,7 @@ def fit(epochs, encoder, encoder_optimizer, decoder, decoder_optimizer, batch_si
         for input_batches, input_lengths, target_batches, target_lengths in train_dl:
             # my dirty quick fix, last batch usually not full size this avoids error
             if input_batches.size()[1] != batch_size:
-                #continue
+                continue
                 train_batch_size=input_batches.size()[1]
 
             loss, ec, dc = train_batch(
@@ -194,13 +205,14 @@ def fit(epochs, encoder, encoder_optimizer, decoder, decoder_optimizer, batch_si
         decoder.train(False)
         loss_total_valid = 0
         nbatches_valid = 0
-        valid_batch_size=batch_size*2 #no need to compute gradient, make batch bigger
+        #valid_batch_size=batch_size*2 #no need to compute gradient, make batch bigger
+        valid_batch_size_temp=valid_batch_size
         for val_input_batches, val_input_lengths, val_target_batches, val_target_lengths in valid_dl:
-            if val_input_batches.size()[1] != valid_batch_size:
-                #continue
-                valid_batch_size=val_input_batches.size()[1]
+            if val_input_batches.size()[1] != valid_batch_size_temp:
+                continue
+                valid_batch_size_temp=val_input_batches.size()[1]
             loss=valid_batch(encoder, decoder, val_input_batches, val_input_lengths, val_target_batches, val_target_lengths,
-                        valid_batch_size, MAX_LENGTH, SOS_token, USE_CUDA)
+                             valid_batch_size_temp, MAX_LENGTH, SOS_token, USE_CUDA)
             nbatches_valid+=1
             loss_total_valid+=loss
 
@@ -211,7 +223,7 @@ def fit(epochs, encoder, encoder_optimizer, decoder, decoder_optimizer, batch_si
 def predict(text, encoder, decoder, data_manager, max_length=10):
     encoder.train(False)
     decoder.train(False)
-    input_toks_id=data_manager.seq_x.numericalize(text)
+    input_toks_id=data_manager.train_seq2seq.seq_x.numericalize(text)
     input_batch, input_length=to_padded_tensor([input_toks_id])
 
     encoder_outputs, encoder_hidden = encoder(input_batch, input_length, None)
@@ -228,19 +240,20 @@ def predict(text, encoder, decoder, data_manager, max_length=10):
         # Choose top word from output
         topv, topi = decoder_output.data.topk(1)
         ni = topi[0][0]
-        if ni == EOS_token:
+        if ni.item() == EOS_token:
             decoded_toks_id.append(ni.item())
             break
         else:
             decoded_toks_id.append(ni.item())
     #turn them into words
-    text=data_manager.seq_y.textify(decoded_toks_id)
+    text=data_manager.train_seq2seq.seq_y.textify(decoded_toks_id)
     return text
 
 
 
 #test
-fit(n_epochs, encoder, encoder_optimizer, decoder, decoder_optimizer, batch_size, clip, masked_cross_entropy, train_dl=train_dataloader, valid_dl=valid_dataloader)
+fit(n_epochs, encoder, encoder_optimizer, decoder, decoder_optimizer, train_batch_size, valid_batch_size, clip,
+    masked_cross_entropy, train_dl=train_dataloader, valid_dl=valid_dataloader)
 
-predicted_text=predict('I loved you.', encoder, decoder, data_manager)
+predicted_text=predict('i loved you.', encoder, decoder, data_manager)
 print(predicted_text)

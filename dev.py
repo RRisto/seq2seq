@@ -10,7 +10,8 @@ import spacy as spacy
 from spacy.symbols import ORTH
 from torch.utils.data import Dataset, DataLoader
 
-TOK_XX=['<eos>','<bos>','<unk>']
+TOK_XX=['<bos>','<eos>','<unk>']
+PAD_IDX=0
 
 def partition(a, sz):
     """splits iterables a in equal parts of size sz"""
@@ -29,7 +30,7 @@ class Tokenizer():
     def __init__(self, lang='en'):
         self.re_br = re.compile(r'<\s*br\s*/?>', re.IGNORECASE)
         self.tok = spacy.load(lang)
-        for w in ('<eos>','<bos>','<unk>'):
+        for w in ('<bos>','<eos>','<unk>'):
             self.tok.tokenizer.add_special_case(w, [{ORTH: w}])
 
     def sub_br(self,x):
@@ -127,12 +128,13 @@ class Vocab():
         self.stoi = collections.defaultdict(int,{v:k for k,v in enumerate(self.itos)})
 
     @classmethod
-    def create(cls, tokens, max_vocab:int, min_freq:int, TOK_XX=[EOS, BOS, UNK]):
+    def create(cls, tokens, max_vocab:int, min_freq:int, TOK_XX=[BOS, EOS, UNK]):
         "Create a vocabulary from a set of tokens."
         freq = collections.Counter(p for o in tokens for p in o)
         itos = [o for o,c in freq.most_common(max_vocab) if c >= min_freq]
         for o in reversed(TOK_XX):
-            if o in itos: itos.remove(o)
+            if o in itos:
+                itos.remove(o)
             itos.insert(0, o)
         return cls(itos)
 
@@ -147,7 +149,7 @@ id_list=[voc.numericalize(text) for text in toks]
 print(id_list)
 
 
-def add_special_strings(texts, EOS, BOS):
+def add_special_strings(texts, BOS, EOS):
     if not isinstance(texts, pd.DataFrame):
         texts=list(texts)
         texts = pd.DataFrame(texts)
@@ -155,7 +157,7 @@ def add_special_strings(texts, EOS, BOS):
     return texts.values
 
 class SeqData():
-    def __init__(self, texts, toks, vocab, toks_id, max_vocab=60000,  min_freq=1, TOK_XX=[EOS, BOS, UNK],
+    def __init__(self, texts, toks, vocab, toks_id, max_vocab=60000,  min_freq=1, TOK_XX=[BOS, EOS, UNK],
                  tokenizer=Tokenizer):
         self.texts=texts
         self.max_vocab=max_vocab
@@ -167,7 +169,7 @@ class SeqData():
         self.toks_id=toks_id
 
     def numericalize(self, text):
-        text=add_special_strings([text], EOS, BOS)
+        text=add_special_strings([text], BOS, EOS)
         toks=self.tokenizer.proc_all_mp([[text[0]]])
         toks=self.vocab.numericalize(toks[0])
         return toks
@@ -198,14 +200,12 @@ class SeqData():
         else:
             print('You must have max_len and min_len values set or idx_to_keep set')
 
-
-
-
     @classmethod
-    def create(cls, texts, max_vocab=60000,  min_freq=1,TOK_XX=[EOS, BOS, UNK], tokenizer=Tokenizer):
-        texts=add_special_strings(texts, EOS, BOS)
+    def create(cls, texts, max_vocab=60000,  min_freq=1,TOK_XX=[BOS, EOS, UNK], tokenizer=Tokenizer, vocab=None):
+        texts=add_special_strings(texts, BOS, EOS)
         toks=tokenizer.proc_all_mp([texts])
-        vocab=Vocab.create(toks, max_vocab, min_freq, TOK_XX)
+        if vocab is None:
+            vocab=Vocab.create(toks, max_vocab, min_freq, TOK_XX)
         toks_id=np.array([vocab.numericalize(text) for text in toks])
         return cls(texts, toks, vocab, toks_id, max_vocab, min_freq, TOK_XX, tokenizer)
 
@@ -213,16 +213,16 @@ sentences=['mis see on', 'kes see veel on']
 pr=SeqData.create(sentences)
 print(pr.toks)
 
-def to_padded_tensor(toks_id, pad_end=True, pad_idx=1):
-    lens=[len(t) for t in toks_id]
-    max_len=max(lens)
-    res = torch.zeros(len(toks_id), max_len).long() + pad_idx
-    for i, toks in enumerate(toks_id):
-        if pad_end:
-            res[i,0:len(toks)] = torch.LongTensor(toks)
-        else:
-            res[i, -len(toks):] = torch.LongTensor(toks)
-    return res, lens
+#def to_padded_tensor(toks_id, pad_end=True, pad_idx=1):
+ #   lens=[len(t) for t in toks_id]
+  #  max_len=max(lens)
+   # res = torch.zeros(len(toks_id), max_len).long() + pad_idx
+    #for i, toks in enumerate(toks_id):
+   #     if pad_end:
+    #        res[i,0:len(toks)] = torch.LongTensor(toks)
+     #   else:
+      #      res[i, -len(toks):] = torch.LongTensor(toks)
+    #return res, lens
 
 
 def A(*a):
@@ -231,14 +231,26 @@ def A(*a):
 
 class Seq2SeqDataset(Dataset):
     """helper to wrap datasets for dataloader"""
-    def __init__(self, x, y):
-        self.x,self.y = x,y
+    def __init__(self, seq_x, seq_y):
+        self.seq_x = seq_x
+        self.seq_y = seq_y
+        self.x = self.seq_x.toks_id
+        self.y = self.seq_y.toks_id
+
     def __getitem__(self, idx):
         return A(self.x[idx], self.y[idx])
     def __len__(self):
         return len(self.x)
 
-def to_padded_tensor(sequences, pad_end=True, pad_idx=1, transpose=True):
+    @classmethod
+    def create(cls, seg_x, seq_y, min_ntoks, max_ntoks):
+        idxs_to_keep=seg_x.ids_to_keep(max_ntoks, min_ntoks)
+        seg_x.remove(idx_to_keep=idxs_to_keep)
+        seq_y.remove(idx_to_keep=idxs_to_keep)
+        return cls(seg_x, seq_y)
+
+
+def to_padded_tensor(sequences, pad_end=True, pad_idx=PAD_IDX, transpose=True):
     lens=[len(seq) for seq in sequences]
     max_len=max(lens)
     tens = torch.zeros(len(sequences), max_len).long() + pad_idx
@@ -283,74 +295,70 @@ def read_pairs_txt(filename):
     return pairs
 
 class Seq2SeqDataManager():
-   # def __init__(self, texts_x, texts_y, seq_x, seq_y,seq_x_tensor, lens_x, seq_y_tensor, lens_y, min_freq=1,
-    #             max_vocab=60000, TOK_XX=[EOS, BOS, UNK], tokenizer=Tokenizer, valid_perc=0.1):
-    def __init__(self, texts_x, texts_y, seq_x, seq_y, min_freq=1,
-                     max_vocab=60000, TOK_XX=[EOS, BOS, UNK], tokenizer=Tokenizer, valid_perc=0.1):
-        self.texts_x=texts_x
-        self.texts_y=texts_y
-        self.seq_x=seq_x
-        self.seq_y=seq_y
-       # self.seq_x_tensor=seq_x_tensor
-        #self.lens_x=lens_x
-        #self.seq_y_tensor=seq_y_tensor
-        #self.lens_y=lens_y
-        self.min_freq = min_freq
-        self.max_vocab = max_vocab
-        self.TOK_XX = TOK_XX
-        self.tokenizer = tokenizer
-        self.valid_perc=valid_perc
+    def __init__(self, train_seq2seq, valid_seq2seq):
+        self.train_seq2seq=train_seq2seq
+        self.valid_seq2seq=valid_seq2seq
 
-    def get_dataloaders(self, batch_size=10, seed=1):
-        self.seed=seed
-        self.batch_size=batch_size
-        np.random.seed(self.seed)
+    def get_dataloaders(self, train_batch_size=10, valid_batch_size=1):
+        self.train_batch_size=train_batch_size
+        self.valid_batch_size=valid_batch_size
 
-        idxs=np.random.choice(np.array(range(len(self.seq_x.toks_id))), size=len(self.seq_x.toks_id), replace=False)
-        valid_end_idx=int(self.valid_perc*len(idxs))
-
-        self.train_idxs=idxs[valid_end_idx:]
-        self.valid_idxs=idxs[0:valid_end_idx]
-
-        train_dataset=Seq2SeqDataset(self.seq_x.toks_id[self.train_idxs], self.seq_y.toks_id[self.train_idxs])
-        valid_dataset=Seq2SeqDataset(self.seq_x.toks_id[self.valid_idxs], self.seq_y.toks_id[self.valid_idxs])
-
-        train_dataloader=DataLoader(train_dataset, batch_size=self.batch_size,collate_fn=collate_fn, shuffle=True)
-        valid_dataloader=DataLoader(valid_dataset, batch_size=self.batch_size*2, collate_fn=collate_fn)
+        train_dataloader=DataLoader(self.train_seq2seq, batch_size=self.train_batch_size,collate_fn=collate_fn)
+        valid_dataloader=DataLoader(self.valid_seq2seq, batch_size=self.valid_batch_size, collate_fn=collate_fn)
         return train_dataloader, valid_dataloader
 
     @classmethod
-    def create(cls, texts_x, texts_y, min_freq=2, max_vocab=60000, TOK_XX=[EOS, BOS, UNK], tokenizer=Tokenizer, valid_perc=0.1):
-        seq_x = SeqData.create(texts_x, max_vocab, min_freq, TOK_XX, tokenizer)
-        seq_y = SeqData.create(texts_y, max_vocab, min_freq, TOK_XX, tokenizer)
-        if len(seq_y.toks_id)!=len(seq_x.toks_id):
+    def create(cls, train_x, train_y, valid_x, valid_y, min_freq=2, max_vocab=60000, min_ntoks=1, max_ntoks=7, TOK_XX=[BOS, EOS, UNK],
+                        tokenizer=Tokenizer):
+        train_seq_x = SeqData.create(train_x, max_vocab, min_freq, TOK_XX, tokenizer)
+        train_seq_y = SeqData.create(train_y, max_vocab, min_freq, TOK_XX, tokenizer)
+
+        if len(train_seq_y.toks_id) != len(train_seq_x.toks_id):
             print('source and target sequences have different lengths')
             return
-        return cls(texts_x, texts_y, seq_x, seq_y, min_freq, max_vocab, TOK_XX, tokenizer, valid_perc)
+
+        valid_seq_x = SeqData.create(valid_x, max_vocab, min_freq, TOK_XX, tokenizer, train_seq_x.vocab)
+        valid_seq_y = SeqData.create(valid_y, max_vocab, min_freq, TOK_XX, tokenizer, train_seq_y.vocab)
+
+        train_seq2seq = Seq2SeqDataset.create(train_seq_x, train_seq_y, min_ntoks, max_ntoks)
+        valid_seq2seq = Seq2SeqDataset.create(valid_seq_x, valid_seq_y, min_ntoks, max_ntoks)
+        return cls(train_seq2seq, valid_seq2seq)
 
     @classmethod
-    def create_from_txt(cls, filename, min_freq=2, max_vocab=60000, min_ntoks=2, max_ntoks=5, TOK_XX=[EOS, BOS, UNK],
-                        tokenizer=Tokenizer, valid_perc=0.1):
-        pairs=read_pairs_txt(filename)
-        texts_x, texts_y=zip(*pairs)
-        seq_x = SeqData.create(texts_x, max_vocab, min_freq, TOK_XX, tokenizer)
-        seq_y = SeqData.create(texts_y, max_vocab, min_freq, TOK_XX, tokenizer)
-        idxs_to_keep=seq_x.ids_to_keep(max_ntoks, min_ntoks)
-        seq_x.remove(idx_to_keep=idxs_to_keep)
-        seq_y.remove(idx_to_keep=idxs_to_keep)
-        if len(seq_y.toks_id) != len(seq_x.toks_id):
-            print('source and target sequences have different lengths')
-            return
-        return cls(texts_x, texts_y, seq_x, seq_y, min_freq, max_vocab, TOK_XX, tokenizer, valid_perc)
+    def create_from_txt(cls, train_filename, valid_filename=None, min_freq=2, max_vocab=60000, min_ntoks=1, max_ntoks=7, TOK_XX=[BOS, EOS, UNK],
+                        tokenizer=Tokenizer, valid_perc=.1, seed=1):
+        """if valid has filename loads validation set from there, otherwise makes valid set from train set using
+        valid perc"""
+
+        train_df=pd.read_table(train_filename, header=None)
+        train_x=train_df[0].apply(lambda x: normalize_string(x))
+        train_y=train_df[1].apply(lambda x: normalize_string(x))
+        if valid_filename is not None:
+            valid_df=pd.read_table(valid_filename, header=None)
+            valid_x = valid_df[0].apply(lambda x: normalize_string(x))
+            valid_y = valid_df[1].apply(lambda x: normalize_string(x))
+        else:
+            np.random.seed(seed)
+            rands=np.random.rand(len(train_x))
+            valid_x=train_x[rands<=valid_perc]
+            valid_y=train_y[rands<=valid_perc]
+
+            train_x=train_x[rands>valid_perc]
+            train_y=train_y[rands>valid_perc]
+
+        return cls.create(train_x, train_y, valid_x, valid_y, min_freq, max_vocab, min_ntoks, max_ntoks, TOK_XX, tokenizer)
+
 
 
 input_sentences=['mis see on', 'kes see veel on', 'miks on', 'kas on', 'kas on', 'kes on ','mis see on', 'kes see veel on', 'miks on', 'kas on', 'kas on', 'kes on ']
 target_sentences=['mis', 'kes', 'miks', 'kas', 'kas', 'kes ','mis', 'kes see veel', 'miks', 'kas', 'kas', 'kes']
-pr=Seq2SeqDataManager.create(input_sentences, target_sentences)
+pr=Seq2SeqDataManager.create(input_sentences, target_sentences,input_sentences, target_sentences)
 trn_dataloader, valid_dataloader=pr.get_dataloaders()
 for inp_tens, input_lens, targ_tens, targ_lens in trn_dataloader:
     print(input_lens)
     print(targ_tens)
 print(pr)
+pr=Seq2SeqDataManager.create_from_txt('data/eng-fra_sub.txt')
 #def pad_
+
 
