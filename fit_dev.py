@@ -9,11 +9,11 @@ from encoder import EncoderRNN
 from utils import print_summary
 
 USE_CUDA = False
-PAD_token = -1
+PAD_token = 0
 #SOS_token = 1
-SOS_token = 0
+SOS_token = 1
 #EOS_token = 2
-EOS_token = 1
+EOS_token = 2
 MIN_LENGTH = 3
 #MAX_LENGTH = 25
 MAX_LENGTH = 6
@@ -21,7 +21,7 @@ MIN_COUNT = 5
 
 ## Get data
 #data_manager=Seq2SeqDataManager.create_from_txt('data/eng-fra_sub.txt')
-data_manager=Seq2SeqDataManager.create_from_txt('data/eng-fra_sub.txt')
+data_manager=Seq2SeqDataManager.create_from_txt('data/eng-fra_sub.txt', min_freq=2)
 #data_manager=Seq2SeqDataManager.create_from_txt('data/eng-fra.txt', min_ntoks=3, max_ntoks=10)
 ##test
 train_batch_size = 100
@@ -43,7 +43,7 @@ dropout = 0.1
 clip = 50.0
 teacher_forcing_ratio = 0.5
 #learning_rate = 0.0001
-learning_rate = 0.0001
+learning_rate = 0.001
 decoder_learning_ratio = 5.0
 # n_epochs = 50000
 n_epochs = 20

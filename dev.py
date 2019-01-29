@@ -10,8 +10,13 @@ import spacy as spacy
 from spacy.symbols import ORTH
 from torch.utils.data import Dataset, DataLoader
 
-TOK_XX=['<bos>','<eos>','<unk>']
-PAD_IDX=0
+BOS='<bos>'
+EOS='<eos>'
+UNK='<unk>'
+PAD='<pad>'
+UNK_id=0
+TOK_XX=[UNK, PAD, BOS, EOS]
+PAD_IDX=1
 
 def partition(a, sz):
     """splits iterables a in equal parts of size sz"""
@@ -103,14 +108,15 @@ toks=Tokenizer.proc_all_mp(partition_by_cores(sentences))
 print(toks)
 
 ## vocab
-EOS='<eos>'
-BOS='<bos>'
-UNK='<unk>'
+#EOS='<eos>'
+#BOS='<bos>'
+#UNK='<unk>'
 class Vocab():
     "Contain the correspondance between numbers and tokens and numericalize."
     def __init__(self, itos):
         self.itos = itos
         self.stoi = collections.defaultdict(int,{v:k for k,v in enumerate(self.itos)})
+        #self.stoi = collections.defaultdict(lambda : UNK_id, {v:k for k,v in enumerate(self.itos)})
 
     def numericalize(self, t):
         "Convert a list of tokens `t` to their ids."
@@ -128,7 +134,7 @@ class Vocab():
         self.stoi = collections.defaultdict(int,{v:k for k,v in enumerate(self.itos)})
 
     @classmethod
-    def create(cls, tokens, max_vocab:int, min_freq:int, TOK_XX=[BOS, EOS, UNK]):
+    def create(cls, tokens, max_vocab:int, min_freq:int, TOK_XX=TOK_XX):
         "Create a vocabulary from a set of tokens."
         freq = collections.Counter(p for o in tokens for p in o)
         itos = [o for o,c in freq.most_common(max_vocab) if c >= min_freq]
@@ -153,11 +159,12 @@ def add_special_strings(texts, BOS, EOS):
     if not isinstance(texts, pd.DataFrame):
         texts=list(texts)
         texts = pd.DataFrame(texts)
-    texts=f'{BOS} '+texts[0]+f' {EOS}'
+    #texts=f'{BOS} '+texts[0]+f' {EOS}'
+    texts=texts[0]+f' {EOS}'
     return texts.values
 
 class SeqData():
-    def __init__(self, texts, toks, vocab, toks_id, max_vocab=60000,  min_freq=1, TOK_XX=[BOS, EOS, UNK],
+    def __init__(self, texts, toks, vocab, toks_id, max_vocab=60000,  min_freq=1, TOK_XX=TOK_XX,
                  tokenizer=Tokenizer):
         self.texts=texts
         self.max_vocab=max_vocab
@@ -201,7 +208,7 @@ class SeqData():
             print('You must have max_len and min_len values set or idx_to_keep set')
 
     @classmethod
-    def create(cls, texts, max_vocab=60000,  min_freq=1,TOK_XX=[BOS, EOS, UNK], tokenizer=Tokenizer, vocab=None):
+    def create(cls, texts, max_vocab=60000,  min_freq=1,TOK_XX=TOK_XX, tokenizer=Tokenizer, vocab=None):
         texts=add_special_strings(texts, BOS, EOS)
         toks=tokenizer.proc_all_mp([texts])
         if vocab is None:
@@ -308,7 +315,7 @@ class Seq2SeqDataManager():
         return train_dataloader, valid_dataloader
 
     @classmethod
-    def create(cls, train_x, train_y, valid_x, valid_y, min_freq=2, max_vocab=60000, min_ntoks=1, max_ntoks=7, TOK_XX=[BOS, EOS, UNK],
+    def create(cls, train_x, train_y, valid_x, valid_y, min_freq=2, max_vocab=60000, min_ntoks=1, max_ntoks=7, TOK_XX=TOK_XX,
                         tokenizer=Tokenizer):
         train_seq_x = SeqData.create(train_x, max_vocab, min_freq, TOK_XX, tokenizer)
         train_seq_y = SeqData.create(train_y, max_vocab, min_freq, TOK_XX, tokenizer)
@@ -325,7 +332,7 @@ class Seq2SeqDataManager():
         return cls(train_seq2seq, valid_seq2seq)
 
     @classmethod
-    def create_from_txt(cls, train_filename, valid_filename=None, min_freq=2, max_vocab=60000, min_ntoks=1, max_ntoks=7, TOK_XX=[BOS, EOS, UNK],
+    def create_from_txt(cls, train_filename, valid_filename=None, min_freq=2, max_vocab=60000, min_ntoks=1, max_ntoks=7, TOK_XX=TOK_XX,
                         tokenizer=Tokenizer, valid_perc=.1, seed=1):
         """if valid has filename loads validation set from there, otherwise makes valid set from train set using
         valid perc"""
@@ -352,11 +359,11 @@ class Seq2SeqDataManager():
 
 input_sentences=['mis see on', 'kes see veel on', 'miks on', 'kas on', 'kas on', 'kes on ','mis see on', 'kes see veel on', 'miks on', 'kas on', 'kas on', 'kes on ']
 target_sentences=['mis', 'kes', 'miks', 'kas', 'kas', 'kes ','mis', 'kes see veel', 'miks', 'kas', 'kas', 'kes']
-pr=Seq2SeqDataManager.create(input_sentences, target_sentences,input_sentences, target_sentences)
+pr=Seq2SeqDataManager.create(input_sentences, target_sentences,input_sentences, target_sentences, min_freq=1)
 trn_dataloader, valid_dataloader=pr.get_dataloaders()
 for inp_tens, input_lens, targ_tens, targ_lens in trn_dataloader:
-    print(input_lens)
-    print(targ_tens)
+    print(f'input tensor {inp_tens}')
+    print(f'output tensor {targ_tens}')
 print(pr)
 pr=Seq2SeqDataManager.create_from_txt('data/eng-fra_sub.txt')
 #def pad_
