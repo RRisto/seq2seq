@@ -18,6 +18,7 @@ UNK_id=0
 TOK_XX=[UNK, PAD, BOS, EOS]
 PAD_IDX=1
 
+
 def partition(a, sz):
     """splits iterables a in equal parts of size sz"""
     return [a[i:i+sz] for i in range(0, len(a), sz)]
@@ -102,10 +103,10 @@ class Tokenizer():
             return sum(e.map(Tokenizer.proc_all, ss, [lang]*len(ss)), [])
 
 
-sentences=['mis see on', 'kes see veel on']
+#sentences=['mis see on', 'kes see veel on']
 
-toks=Tokenizer.proc_all_mp(partition_by_cores(sentences))
-print(toks)
+#toks=Tokenizer.proc_all_mp(partition_by_cores(sentences))
+#print(toks)
 
 ## vocab
 #EOS='<eos>'
@@ -144,15 +145,15 @@ class Vocab():
             itos.insert(0, o)
         return cls(itos)
 
-print(f'toks: {toks}')
-voc=Vocab.create(toks,100, 1)
-print(f'itos {voc.itos}')
-print(f'stoi {voc.stoi}')
-print(f' numericalize {voc.numericalize(toks[0])}')
-print('tere')
+#print(f'toks: {toks}')
+#voc=Vocab.create(toks,100, 1)
+#print(f'itos {voc.itos}')
+#print(f'stoi {voc.stoi}')
+#print(f' numericalize {voc.numericalize(toks[0])}')
+#print('tere')
 
-id_list=[voc.numericalize(text) for text in toks]
-print(id_list)
+#id_list=[voc.numericalize(text) for text in toks]
+#print(id_list)
 
 
 def add_special_strings(texts, BOS, EOS):
@@ -188,17 +189,24 @@ class SeqData():
     def toks_lens(self):
         return np.array([len(toks) for toks in self.toks_id])
 
-    def ids_to_keep(self, max_len, min_len=1):
+    def toks_contain_unk(self):
+        return np.array([True  if UNK_id in toks else False for toks in self.toks_id])
+
+    def ids_to_keep(self, max_len, min_len=1, remove_unk=True):
         self.min_len=min_len
         self.max_len=max_len
         toks_len=self.toks_lens()
-        idx_to_keep=(toks_len>=self.min_len)&(toks_len<=self.max_len)
+        if remove_unk:
+            toks_cont_unk=self.toks_contain_unk()
+            idx_to_keep=(toks_len>=self.min_len)&(toks_len<=self.max_len)&(~toks_cont_unk)
+        else:
+            idx_to_keep=(toks_len>=self.min_len)&(toks_len<=self.max_len)
         return idx_to_keep
 
-    def remove(self, max_len=None, min_len=None, idx_to_keep=None):
+    def remove(self, max_len=None, min_len=None, idx_to_keep=None, remove_unk=True):
         #reomve by length or indexes (boolean)
         if max_len is not None and min_len is not None and idx_to_keep is None:
-            idx_to_keep = self.ids_to_keep(max_len, min_len)
+            idx_to_keep = self.ids_to_keep(max_len, min_len, remove_unk)
 
         if idx_to_keep is not None:
             n_seq_original=len(self.toks_id)
@@ -220,17 +228,6 @@ sentences=['mis see on', 'kes see veel on']
 pr=SeqData.create(sentences)
 print(pr.toks)
 
-#def to_padded_tensor(toks_id, pad_end=True, pad_idx=1):
- #   lens=[len(t) for t in toks_id]
-  #  max_len=max(lens)
-   # res = torch.zeros(len(toks_id), max_len).long() + pad_idx
-    #for i, toks in enumerate(toks_id):
-   #     if pad_end:
-    #        res[i,0:len(toks)] = torch.LongTensor(toks)
-     #   else:
-      #      res[i, -len(toks):] = torch.LongTensor(toks)
-    #return res, lens
-
 
 def A(*a):
     """convert iterable object into numpy array"""
@@ -250,10 +247,14 @@ class Seq2SeqDataset(Dataset):
         return len(self.x)
 
     @classmethod
-    def create(cls, seg_x, seq_y, min_ntoks, max_ntoks):
-        idxs_to_keep=seg_x.ids_to_keep(max_ntoks, min_ntoks)
-        seg_x.remove(idx_to_keep=idxs_to_keep)
-        seq_y.remove(idx_to_keep=idxs_to_keep)
+    def create(cls, seg_x, seq_y, min_ntoks, max_ntoks, remove_unk=True):
+        idxs_to_keep=seg_x.ids_to_keep(max_ntoks, min_ntoks, remove_unk=True)
+        seg_x.remove(idxs_to_keep=idxs_to_keep)
+        seq_y.remove(idxs_to_keep=idxs_to_keep)
+
+        idxs_to_keep = seq_y.ids_to_keep(max_ntoks, min_ntoks, remove_unk=True)
+        seg_x.remove(idxs_to_keep=idxs_to_keep)
+        seq_y.remove(idxs_to_keep=idxs_to_keep)
         return cls(seg_x, seq_y)
 
 
@@ -333,15 +334,21 @@ class Seq2SeqDataManager():
 
     @classmethod
     def create_from_txt(cls, train_filename, valid_filename=None, min_freq=2, max_vocab=60000, min_ntoks=1, max_ntoks=7, TOK_XX=TOK_XX,
-                        tokenizer=Tokenizer, valid_perc=.1, seed=1):
+                        tokenizer=Tokenizer, valid_perc=.1, seed=1, switch_pair=True):
         """if valid has filename loads validation set from there, otherwise makes valid set from train set using
         valid perc"""
 
         train_df=pd.read_table(train_filename, header=None)
+        if switch_pair:
+            train_df=train_df[[1,0]]
+            train_df.columns=pd.Index([0,1])
         train_x=train_df[0].apply(lambda x: normalize_string(x))
         train_y=train_df[1].apply(lambda x: normalize_string(x))
         if valid_filename is not None:
             valid_df=pd.read_table(valid_filename, header=None)
+            if switch_pair:
+                valid_df = valid_df[[1, 0]]
+                valid_df.columns = pd.Index([0, 1])
             valid_x = valid_df[0].apply(lambda x: normalize_string(x))
             valid_y = valid_df[1].apply(lambda x: normalize_string(x))
         else:

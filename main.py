@@ -1,6 +1,7 @@
 import time
 import torch.nn as nn
 from torch import optim
+import numpy as np
 
 from masked_cross_entropy import *
 from data_helpers import prepare_data, random_batch
@@ -52,7 +53,7 @@ print(f"Trimmed from {len(pairs)} pairs to {len(keep_pairs)}, {round((len(keep_p
 pairs = keep_pairs
 
 ##test
-small_batch_size = 3
+small_batch_size = 100
 input_batches, input_lengths, target_batches, target_lengths = random_batch(small_batch_size, pairs, input_lang,
                                                                             output_lang, PAD_token, EOS_token, USE_CUDA)
 
@@ -105,7 +106,7 @@ hidden_size = 50
 n_layers = 2
 dropout = 0.1
 #batch_size = 100
-batch_size = 3
+batch_size = 100
 
 # Configure training/optimization
 clip = 50.0
@@ -120,7 +121,7 @@ plot_every = 2000
 # print_every = 100
 print_every = 500
 # evaluate_every = 1000
-evaluate_every = 300
+evaluate_every = 50
 
 # Initialize models
 encoder = EncoderRNN(input_lang.n_words, hidden_size, n_layers, dropout=dropout)
@@ -164,12 +165,12 @@ while epoch < n_epochs:
 
     #     job.record(epoch, loss)
 
-    if epoch % print_every == 0:
+    #if epoch % print_every == 0:
         #         pdb.set_trace()
-        print_loss_avg = print_loss_total / print_every
-        print_loss_total = 0
-        print_summary = f'{time_since(start, epoch / n_epochs)} ({epoch} {epoch / n_epochs * 100}%) {print_loss_avg}'
-        print(print_summary)
+     #   print_loss_avg = print_loss_total / print_every
+      #  print_loss_total = 0
+      #  print_summary = f'{time_since(start, epoch / n_epochs)} ({epoch} {epoch / n_epochs * 100}%) {print_loss_avg}'
+       # print(print_summary)
 
     if epoch % evaluate_every == 0:
         evaluate_randomly(pairs, MAX_LENGTH, input_lang, output_lang, SOS_token, EOS_token, encoder, decoder, USE_CUDA)

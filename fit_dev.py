@@ -1,19 +1,20 @@
 import time
 import torch.nn as nn
 from torch import optim
+import numpy as np
 
-from dev import Seq2SeqDataManager, to_padded_tensor
+from data_dev import Seq2SeqDataManager, to_padded_tensor, normalize_string, TOK_XX
 from masked_cross_entropy import *
 from decoder import LuongAttnDecoderRNN
 from encoder import EncoderRNN
 from utils import print_summary
 
 USE_CUDA = False
-PAD_token = 0
+#PAD_token = 1
 #SOS_token = 1
-SOS_token = 1
+#SOS_token = 2
 #EOS_token = 2
-EOS_token = 2
+#EOS_token = 3
 MIN_LENGTH = 3
 #MAX_LENGTH = 25
 MAX_LENGTH = 6
@@ -21,7 +22,7 @@ MIN_COUNT = 5
 
 ## Get data
 #data_manager=Seq2SeqDataManager.create_from_txt('data/eng-fra_sub.txt')
-data_manager=Seq2SeqDataManager.create_from_txt('data/eng-fra_sub.txt', min_freq=2)
+data_manager=Seq2SeqDataManager.create_from_txt('data/eng-fra_sub.txt', min_freq=MIN_COUNT, min_ntoks=MIN_LENGTH, switch_pair=True)
 #data_manager=Seq2SeqDataManager.create_from_txt('data/eng-fra.txt', min_ntoks=3, max_ntoks=10)
 ##test
 train_batch_size = 100
@@ -46,7 +47,7 @@ teacher_forcing_ratio = 0.5
 learning_rate = 0.001
 decoder_learning_ratio = 5.0
 # n_epochs = 50000
-n_epochs = 20
+n_epochs =20
 epoch = 0
 # plot_every = 20
 plot_every = 2000
@@ -67,7 +68,7 @@ criterion = nn.CrossEntropyLoss()
 
 ##train helper
 def train_batch(input_batches, input_lengths, target_batches, target_lengths, encoder, decoder, encoder_optimizer,
-                decoder_optimizer, batch_size, clip, SOS_token, USE_CUDA, loss_func=masked_cross_entropy):
+                decoder_optimizer, batch_size, clip, USE_CUDA, loss_func=masked_cross_entropy, TOK_XX=TOK_XX):
     # Zero gradients of both optimizers
     encoder_optimizer.zero_grad()
     decoder_optimizer.zero_grad()
@@ -77,7 +78,7 @@ def train_batch(input_batches, input_lengths, target_batches, target_lengths, en
     encoder_outputs, encoder_hidden = encoder(input_batches, input_lengths, None)
 
     # Prepare input and output variables
-    decoder_input = torch.LongTensor([SOS_token] * batch_size)
+    decoder_input = torch.LongTensor([TOK_XX.BOS_id] * batch_size)
     decoder_hidden = encoder_hidden[:decoder.n_layers]  # Use last (forward) hidden state from encoder
 
     max_target_length = max(target_lengths)
@@ -90,15 +91,12 @@ def train_batch(input_batches, input_lengths, target_batches, target_lengths, en
 
     # Run through decoder one time step at a time
     for t in range(max_target_length):
-        try:
             decoder_output, decoder_hidden, decoder_attn = decoder(
                 decoder_input, decoder_hidden, encoder_outputs
             )
-        except Exception as e:
-            mure=1
 
-        all_decoder_outputs[t] = decoder_output
-        decoder_input = target_batches[t]  # Next input is current target
+            all_decoder_outputs[t] = decoder_output
+            decoder_input = target_batches[t]  # Next input is current target
 
     # Loss calculation and backpropagation
     loss = loss_func(
@@ -120,12 +118,12 @@ def train_batch(input_batches, input_lengths, target_batches, target_lengths, en
 
 
 def valid_batch(encoder, decoder, val_input_batches, val_input_lengths, val_target_batches, val_target_lengths,
-                valid_batch_size, MAX_LENGTH, SOS_token, USE_CUDA):
+                valid_batch_size, USE_CUDA,  TOK_XX=TOK_XX):
     encoder_outputs, encoder_hidden = encoder(val_input_batches, val_input_lengths, None)
 
     # Create starting vectors for decoder
     # decoder_input = torch.LongTensor([SOS_token])  # SOS
-    decoder_input = torch.LongTensor([SOS_token] * valid_batch_size)  # SOS
+    decoder_input = torch.LongTensor([TOK_XX.BOS_id] * valid_batch_size)  # SOS
     decoder_hidden = encoder_hidden[:decoder.n_layers]  # Use last (forward) hidden state from encoder
 
     if USE_CUDA:
@@ -152,7 +150,7 @@ def valid_batch(encoder, decoder, val_input_batches, val_input_lengths, val_targ
         topv, topi = decoder_output.data.topk(1)
         for i in range(len(topv)):
             ni = topi[i][0]
-            if ni.item() == EOS_token:
+            if ni.item() == TOK_XX.EOS_id:
                 decoded_words[i].append('<eos>')
                 # break
             else:
@@ -173,7 +171,7 @@ def valid_batch(encoder, decoder, val_input_batches, val_input_lengths, val_targ
 
 
 def fit(epochs, encoder, encoder_optimizer, decoder, decoder_optimizer, batch_size,valid_batch_size, clip, loss_func=masked_cross_entropy,
-        train_dl=None, valid_dl=None):
+        train_dl=None, valid_dl=None, TOK_XX=TOK_XX):
     eca = 0
     dca = 0
 
@@ -188,12 +186,12 @@ def fit(epochs, encoder, encoder_optimizer, decoder, decoder_optimizer, batch_si
         for input_batches, input_lengths, target_batches, target_lengths in train_dl:
             # my dirty quick fix, last batch usually not full size this avoids error
             if input_batches.size()[1] != batch_size:
-                continue
+                #continue
                 train_batch_size=input_batches.size()[1]
 
             loss, ec, dc = train_batch(
                 input_batches, input_lengths, target_batches, target_lengths, encoder, decoder, encoder_optimizer,
-                decoder_optimizer, train_batch_size, clip, SOS_token, USE_CUDA, loss_func)
+                decoder_optimizer, train_batch_size, clip, USE_CUDA, loss_func, TOK_XX)
 
             nbatches_train+=1
             loss_total_train += loss
@@ -209,10 +207,10 @@ def fit(epochs, encoder, encoder_optimizer, decoder, decoder_optimizer, batch_si
         valid_batch_size_temp=valid_batch_size
         for val_input_batches, val_input_lengths, val_target_batches, val_target_lengths in valid_dl:
             if val_input_batches.size()[1] != valid_batch_size_temp:
-                continue
+                #continue
                 valid_batch_size_temp=val_input_batches.size()[1]
             loss=valid_batch(encoder, decoder, val_input_batches, val_input_lengths, val_target_batches, val_target_lengths,
-                             valid_batch_size_temp, MAX_LENGTH, SOS_token, USE_CUDA)
+                             valid_batch_size_temp, USE_CUDA, TOK_XX)
             nbatches_valid+=1
             loss_total_valid+=loss
 
@@ -223,11 +221,12 @@ def fit(epochs, encoder, encoder_optimizer, decoder, decoder_optimizer, batch_si
 def predict(text, encoder, decoder, data_manager, max_length=10):
     encoder.train(False)
     decoder.train(False)
+    text=normalize_string(text)
     input_toks_id=data_manager.train_seq2seq.seq_x.numericalize(text)
     input_batch, input_length=to_padded_tensor([input_toks_id])
 
     encoder_outputs, encoder_hidden = encoder(input_batch, input_length, None)
-    decoder_input = torch.LongTensor([SOS_token])  # SOS
+    decoder_input = torch.LongTensor([TOK_XX.BOS_id])  # SOS
     decoder_hidden = encoder_hidden[:decoder.n_layers]
 
     decoded_toks_id = []
@@ -240,11 +239,16 @@ def predict(text, encoder, decoder, data_manager, max_length=10):
         # Choose top word from output
         topv, topi = decoder_output.data.topk(1)
         ni = topi[0][0]
-        if ni.item() == EOS_token:
+        if ni.item() == TOK_XX.EOS_id:
             decoded_toks_id.append(ni.item())
             break
         else:
             decoded_toks_id.append(ni.item())
+
+        decoder_input = torch.LongTensor([ni])
+        if USE_CUDA:
+            decoder_input = decoder_input.cuda()
+
     #turn them into words
     text=data_manager.train_seq2seq.seq_y.textify(decoded_toks_id)
     return text
@@ -253,7 +257,12 @@ def predict(text, encoder, decoder, data_manager, max_length=10):
 
 #test
 fit(n_epochs, encoder, encoder_optimizer, decoder, decoder_optimizer, train_batch_size, valid_batch_size, clip,
-    masked_cross_entropy, train_dl=train_dataloader, valid_dl=valid_dataloader)
+   masked_cross_entropy, train_dl=train_dataloader, valid_dl=valid_dataloader)
 
-predicted_text=predict('i loved you.', encoder, decoder, data_manager)
-print(predicted_text)
+#predicted_text=predict('i loved you.', encoder, decoder, data_manager)
+#original_xtext='Je suis sûr.'
+#original_ytext='I am sure.'
+#predicted_text=predict(original_xtext, encoder, decoder, data_manager)
+#print(f'original text: {original_xtext}')
+#print(f'original answer: {original_ytext}')
+#print(f'predicted text: {predicted_text}')
