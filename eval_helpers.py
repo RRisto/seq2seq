@@ -89,7 +89,7 @@ def evaluate_and_show_attention(input_sentence, max_length, input_lang,output_la
         print('=', target_sentence)
     print('<', output_sentence)
 
-    #show_attention(input_sentence, output_words, attentions)
+    show_attention(input_sentence, output_words, attentions)
 
     print(f' input sentence /n {input_sentence}')
     print(f' target sentence /n {target_sentence}')

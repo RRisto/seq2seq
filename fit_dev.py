@@ -2,6 +2,8 @@ import time
 import torch.nn as nn
 from torch import optim
 import numpy as np
+import matplotlib.pyplot as plt
+import matplotlib.ticker as ticker
 
 from data_dev import Seq2SeqDataManager, to_padded_tensor, normalize_string, TOK_XX
 from masked_cross_entropy import *
@@ -22,7 +24,7 @@ MIN_COUNT = 5
 
 ## Get data
 #data_manager=Seq2SeqDataManager.create_from_txt('data/eng-fra_sub.txt')
-data_manager=Seq2SeqDataManager.create_from_txt('data/eng-fra_sub.txt', min_freq=MIN_COUNT, min_ntoks=MIN_LENGTH, switch_pair=True)
+data_manager=Seq2SeqDataManager.create_from_txt('data/eng-fra_sub.txt', min_freq=MIN_COUNT, min_ntoks=MIN_LENGTH, switch_pair=False)
 #data_manager=Seq2SeqDataManager.create_from_txt('data/eng-fra.txt', min_ntoks=3, max_ntoks=10)
 ##test
 train_batch_size = 100
@@ -116,7 +118,6 @@ def train_batch(input_batches, input_lengths, target_batches, target_lengths, en
 
     return loss.data, ec, dc
 
-
 def valid_batch(encoder, decoder, val_input_batches, val_input_lengths, val_target_batches, val_target_lengths,
                 valid_batch_size, USE_CUDA,  TOK_XX=TOK_XX):
     encoder_outputs, encoder_hidden = encoder(val_input_batches, val_input_lengths, None)
@@ -151,8 +152,8 @@ def valid_batch(encoder, decoder, val_input_batches, val_input_lengths, val_targ
         for i in range(len(topv)):
             ni = topi[i][0]
             if ni.item() == TOK_XX.EOS_id:
-                decoded_words[i].append('<eos>')
-                # break
+                decoded_words[i].append(TOK_XX.EOS)
+                break
             else:
                 decoded_words[i].append(data_manager.train_seq2seq.seq_y.vocab.itos[ni.item()])  # another change
         # Next input is chosen word
@@ -167,8 +168,26 @@ def valid_batch(encoder, decoder, val_input_batches, val_input_lengths, val_targ
                 val_target_lengths, USE_CUDA
             )
 
-    return loss
+    #return loss, decoder_attentions[:, di+1, :len(encoder_outputs)], decoded_words
+    return loss, decoder_attentions, decoded_words
 
+def show_attention(input_sentence, output_words, attentions):
+    # Set up figure with colorbar
+    fig = plt.figure()
+    ax = fig.add_subplot(111)
+    cax = ax.matshow(attentions.numpy(), cmap='bone')
+    fig.colorbar(cax)
+
+    # Set up axes
+    ax.set_xticklabels([''] + input_sentence.split(' ') + ['<EOS>'], rotation=90)
+    ax.set_yticklabels([''] + output_words)
+
+    # Show label at every tick
+    ax.xaxis.set_major_locator(ticker.MultipleLocator(1))
+    ax.yaxis.set_major_locator(ticker.MultipleLocator(1))
+
+    plt.show()
+    plt.close()
 
 def fit(epochs, encoder, encoder_optimizer, decoder, decoder_optimizer, batch_size,valid_batch_size, clip, loss_func=masked_cross_entropy,
         train_dl=None, valid_dl=None, TOK_XX=TOK_XX):
@@ -209,13 +228,15 @@ def fit(epochs, encoder, encoder_optimizer, decoder, decoder_optimizer, batch_si
             if val_input_batches.size()[1] != valid_batch_size_temp:
                 #continue
                 valid_batch_size_temp=val_input_batches.size()[1]
-            loss=valid_batch(encoder, decoder, val_input_batches, val_input_lengths, val_target_batches, val_target_lengths,
-                             valid_batch_size_temp, USE_CUDA, TOK_XX)
+            loss, decoder_attentions, decoded_words=valid_batch(encoder, decoder, val_input_batches, val_input_lengths,
+                                                                val_target_batches, val_target_lengths,
+                                                                valid_batch_size_temp, USE_CUDA, TOK_XX)
             nbatches_valid+=1
             loss_total_valid+=loss
 
         valid_loss_avg=loss_total_valid/nbatches_valid
         print_summary(start, epoch, epochs, train_loss_avg.item(), valid_loss_avg.item())
+        #show_attention(data_manager.valid_seq2seq.seq_x.vocab.textify(val_input_batches[0]), decoded_words[0], decoder_attentions)
 
 
 def predict(text, encoder, decoder, data_manager, max_length=10):
