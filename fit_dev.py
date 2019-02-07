@@ -173,6 +173,8 @@ def valid_batch(encoder, decoder, val_input_batches, val_input_lengths, val_targ
 
 def show_attention(input_sentence, output_words, attentions):
     # Set up figure with colorbar
+    #todo lets take just one slice, have to see it later
+    attentions=attentions[0]
     fig = plt.figure()
     ax = fig.add_subplot(111)
     cax = ax.matshow(attentions.numpy(), cmap='bone')
@@ -236,7 +238,7 @@ def fit(epochs, encoder, encoder_optimizer, decoder, decoder_optimizer, batch_si
 
         valid_loss_avg=loss_total_valid/nbatches_valid
         print_summary(start, epoch, epochs, train_loss_avg.item(), valid_loss_avg.item())
-        #show_attention(data_manager.valid_seq2seq.seq_x.vocab.textify(val_input_batches[0]), decoded_words[0], decoder_attentions)
+        show_attention(data_manager.valid_seq2seq.seq_x.vocab.textify(val_input_batches[0]), decoded_words[0], decoder_attentions)
 
 
 def predict(text, encoder, decoder, data_manager, max_length=10):
@@ -278,7 +280,7 @@ def predict(text, encoder, decoder, data_manager, max_length=10):
 
 #test
 fit(n_epochs, encoder, encoder_optimizer, decoder, decoder_optimizer, train_batch_size, valid_batch_size, clip,
-   masked_cross_entropy, train_dl=train_dataloader, valid_dl=valid_dataloader)
+  masked_cross_entropy, train_dl=train_dataloader, valid_dl=valid_dataloader)
 
 #predicted_text=predict('i loved you.', encoder, decoder, data_manager)
 #original_xtext='Je suis sûr.'

@@ -43,7 +43,7 @@ def evaluate(input_seq, max_length, input_lang, output_lang, SOS_token, EOS_toke
         # Choose top word from output
         topv, topi = decoder_output.data.topk(1)
         ni = topi[0][0]
-        if ni == EOS_token:
+        if ni.item() == EOS_token:
             decoded_words.append('<EOS>')
             break
         else:
