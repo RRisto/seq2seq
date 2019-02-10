@@ -106,6 +106,7 @@ class SeqData():
             idxs_to_keep = self.ids_to_keep(max_len, min_len, remove_unk)
         if idxs_to_keep is not None:
             n_seq_original=len(self.toks_id)
+            self.texts=self.texts[idxs_to_keep]
             self.toks_id=self.toks_id[idxs_to_keep]
             self.toks=np.array(self.toks)[idxs_to_keep].tolist()
             if valid and train_vocab is not None:
@@ -132,11 +133,13 @@ def A(*a):
 class Seq2SeqDataset(Dataset):
     """helper to wrap x and y sequences for torch dataloader,
     keeps correspondence that samples that are remove from x are also removed from y"""
-    def __init__(self, seq_x, seq_y):
+    def __init__(self, seq_x, seq_y, min_ntoks, max_ntoks):
         self.seq_x = seq_x
         self.seq_y = seq_y
         self.x = self.seq_x.toks_id
         self.y = self.seq_y.toks_id
+        self.min_ntoks=min_ntoks
+        self.max_ntoks=max_ntoks
 
     def __getitem__(self, idx):
         return A(self.x[idx], self.y[idx])
@@ -158,7 +161,12 @@ class Seq2SeqDataset(Dataset):
             #initialixze sequences again because some tokens might be removed completely
             seq_x=SeqData.create(seq_x.texts, seq_x.max_vocab, seq_x.min_freq, seq_x.TOK_XX, seq_x.tokenizer, add_EOS=False)
             seq_y=SeqData.create(seq_y.texts, seq_y.max_vocab, seq_y.min_freq, seq_y.TOK_XX, seq_y.tokenizer, add_EOS=False)
-        return cls(seq_x, seq_y)
+        else:
+            seq_x = SeqData.create(seq_x.texts, seq_x.max_vocab, seq_x.min_freq, seq_x.TOK_XX, seq_x.tokenizer, train_seq2seq_xvocab,
+                                   add_EOS=False)
+            seq_y = SeqData.create(seq_y.texts, seq_y.max_vocab, seq_y.min_freq, seq_y.TOK_XX, seq_y.tokenizer, train_seq2seq_yvocab,
+                                   add_EOS=False)
+        return cls(seq_x, seq_y, min_ntoks, max_ntoks)
 
 def to_padded_tensor(sequences, pad_end=True, pad_idx=TOK_XX.PAD_id, transpose=True):
     """turns sequences of token ids into tensro with padding and optionally transpose"""
@@ -210,7 +218,7 @@ class Seq2SeqDataManager():
         valid_seq_y = SeqData.create(valid_y, max_vocab, min_freq, TOK_XX, tokenizer, train_seq_y.vocab)
 
         train_seq2seq = Seq2SeqDataset.create(train_seq_x, train_seq_y, min_ntoks, max_ntoks)
-        valid_seq2seq = Seq2SeqDataset.create(valid_seq_x, valid_seq_y, min_ntoks, max_ntoks, True,
+        valid_seq2seq = Seq2SeqDataset.create(valid_seq_x, valid_seq_y, min_ntoks, max_ntoks, False, True,
                                               train_seq2seq.seq_x.vocab, train_seq2seq.seq_y.vocab)
         return cls(train_seq2seq, valid_seq2seq)
 

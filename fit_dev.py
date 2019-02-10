@@ -20,11 +20,11 @@ USE_CUDA = False
 MIN_LENGTH = 3
 #MAX_LENGTH = 25
 MAX_LENGTH = 6
-MIN_COUNT = 5
+MIN_COUNT = 3
 
 ## Get data
 #data_manager=Seq2SeqDataManager.create_from_txt('data/eng-fra_sub.txt')
-data_manager=Seq2SeqDataManager.create_from_txt('data/eng-fra_sub.txt', min_freq=MIN_COUNT, min_ntoks=MIN_LENGTH, switch_pair=False)
+data_manager=Seq2SeqDataManager.create_from_txt('data/eng-fra_sub.txt', min_freq=MIN_COUNT, min_ntoks=MIN_LENGTH, max_ntoks=MAX_LENGTH, switch_pair=True)
 #data_manager=Seq2SeqDataManager.create_from_txt('data/eng-fra.txt', min_ntoks=3, max_ntoks=10)
 ##test
 train_batch_size = 100
@@ -70,7 +70,7 @@ criterion = nn.CrossEntropyLoss()
 
 ##train helper
 def train_batch(input_batches, input_lengths, target_batches, target_lengths, encoder, decoder, encoder_optimizer,
-                decoder_optimizer, batch_size, clip, USE_CUDA, loss_func=masked_cross_entropy, TOK_XX=TOK_XX):
+                decoder_optimizer, batch_size, clip, USE_CUDA, MAX_LENGTH, loss_func=masked_cross_entropy, TOK_XX=TOK_XX):
     # Zero gradients of both optimizers
     encoder_optimizer.zero_grad()
     decoder_optimizer.zero_grad()
@@ -84,6 +84,9 @@ def train_batch(input_batches, input_lengths, target_batches, target_lengths, en
     decoder_hidden = encoder_hidden[:decoder.n_layers]  # Use last (forward) hidden state from encoder
 
     max_target_length = max(target_lengths)
+    #print(max_target_length)
+    #max_target_length = MAX_LENGTH
+    #max_target_length = 12
     all_decoder_outputs = torch.zeros(max_target_length, batch_size, decoder.output_size)
 
     # Move new Variables to CUDA
@@ -119,7 +122,7 @@ def train_batch(input_batches, input_lengths, target_batches, target_lengths, en
     return loss.data, ec, dc
 
 def valid_batch(encoder, decoder, val_input_batches, val_input_lengths, val_target_batches, val_target_lengths,
-                valid_batch_size, USE_CUDA,  TOK_XX=TOK_XX):
+                valid_batch_size, USE_CUDA,  MAX_LENGTH, TOK_XX=TOK_XX):
     encoder_outputs, encoder_hidden = encoder(val_input_batches, val_input_lengths, None)
 
     # Create starting vectors for decoder
@@ -132,6 +135,7 @@ def valid_batch(encoder, decoder, val_input_batches, val_input_lengths, val_targ
 
     # Run through decoder
     val_target_max_len = max(val_target_lengths)
+    #val_target_max_len = MAX_LENGTH
     all_decoder_outputs = torch.zeros(val_target_max_len, valid_batch_size, decoder.output_size)
 
     # Store output words and attention states
@@ -173,8 +177,6 @@ def valid_batch(encoder, decoder, val_input_batches, val_input_lengths, val_targ
 
 def show_attention(input_sentence, output_words, attentions):
     # Set up figure with colorbar
-    #todo lets take just one slice, have to see it later
-    attentions=attentions[0]
     fig = plt.figure()
     ax = fig.add_subplot(111)
     cax = ax.matshow(attentions.numpy(), cmap='bone')
@@ -191,7 +193,7 @@ def show_attention(input_sentence, output_words, attentions):
     plt.show()
     plt.close()
 
-def fit(epochs, encoder, encoder_optimizer, decoder, decoder_optimizer, batch_size,valid_batch_size, clip, loss_func=masked_cross_entropy,
+def fit(epochs, encoder, encoder_optimizer, decoder, decoder_optimizer, batch_size,valid_batch_size, clip, MAX_LENGTH, loss_func=masked_cross_entropy,
         train_dl=None, valid_dl=None, TOK_XX=TOK_XX):
     eca = 0
     dca = 0
@@ -212,7 +214,7 @@ def fit(epochs, encoder, encoder_optimizer, decoder, decoder_optimizer, batch_si
 
             loss, ec, dc = train_batch(
                 input_batches, input_lengths, target_batches, target_lengths, encoder, decoder, encoder_optimizer,
-                decoder_optimizer, train_batch_size, clip, USE_CUDA, loss_func, TOK_XX)
+                decoder_optimizer, train_batch_size, clip, USE_CUDA,MAX_LENGTH, loss_func, TOK_XX)
 
             nbatches_train+=1
             loss_total_train += loss
@@ -232,13 +234,13 @@ def fit(epochs, encoder, encoder_optimizer, decoder, decoder_optimizer, batch_si
                 valid_batch_size_temp=val_input_batches.size()[1]
             loss, decoder_attentions, decoded_words=valid_batch(encoder, decoder, val_input_batches, val_input_lengths,
                                                                 val_target_batches, val_target_lengths,
-                                                                valid_batch_size_temp, USE_CUDA, TOK_XX)
+                                                                valid_batch_size_temp, USE_CUDA, MAX_LENGTH, TOK_XX)
             nbatches_valid+=1
             loss_total_valid+=loss
 
         valid_loss_avg=loss_total_valid/nbatches_valid
         print_summary(start, epoch, epochs, train_loss_avg.item(), valid_loss_avg.item())
-        show_attention(data_manager.valid_seq2seq.seq_x.vocab.textify(val_input_batches[0]), decoded_words[0], decoder_attentions)
+        #show_attention(data_manager.valid_seq2seq.seq_x.vocab.textify(val_input_batches[0]), decoded_words[0], decoder_attentions[0])
 
 
 def predict(text, encoder, decoder, data_manager, max_length=10):
@@ -279,13 +281,13 @@ def predict(text, encoder, decoder, data_manager, max_length=10):
 
 
 #test
-fit(n_epochs, encoder, encoder_optimizer, decoder, decoder_optimizer, train_batch_size, valid_batch_size, clip,
+fit(n_epochs, encoder, encoder_optimizer, decoder, decoder_optimizer, train_batch_size, valid_batch_size, clip,MAX_LENGTH+1,
   masked_cross_entropy, train_dl=train_dataloader, valid_dl=valid_dataloader)
 
-#predicted_text=predict('i loved you.', encoder, decoder, data_manager)
-#original_xtext='Je suis sûr.'
-#original_ytext='I am sure.'
-#predicted_text=predict(original_xtext, encoder, decoder, data_manager)
-#print(f'original text: {original_xtext}')
-#print(f'original answer: {original_ytext}')
-#print(f'predicted text: {predicted_text}')
+predicted_text=predict('i loved you.', encoder, decoder, data_manager)
+original_xtext='Je suis sûr.'
+original_ytext='I am sure.'
+predicted_text=predict(original_xtext, encoder, decoder, data_manager)
+print(f'original text: {original_xtext}')
+print(f'original answer: {original_ytext}')
+print(f'predicted text: {predicted_text}')
