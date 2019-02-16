@@ -183,31 +183,35 @@ def to_padded_tensor(sequences, pad_end=True, pad_idx=TOK_XX.PAD_id, transpose=T
 
     return tens, lens
 
-def collate_fn(data):
+def collate_fn(data, device='cpu'):
     """custom collate for dataloader, sorts batch token ids by length (descending order) and pads"""
     data.sort(key=lambda x: len(x[0]), reverse=True)
     input_seq, target_seq=zip(*data)
-    input_tens, input_lens=to_padded_tensor(input_seq)
-    target_tens, target_lens =to_padded_tensor(target_seq)
+    input_tens, input_lens=to_padded_tensor(input_seq, device=device)
+    target_tens, target_lens =to_padded_tensor(target_seq, device=device)
     return input_tens, input_lens, target_tens, target_lens
 
 class Seq2SeqDataManager():
     """class to manage x and y strain and validation equences creation. Helps to create dataloaders"""
-    def __init__(self, train_seq2seq, valid_seq2seq):
+    def __init__(self, train_seq2seq, valid_seq2seq, device):
         self.train_seq2seq=train_seq2seq
         self.valid_seq2seq=valid_seq2seq
+        self.device=device
+
+    def collate_fn(self, data):
+        return collate_fn(data, self.device)
 
     def get_dataloaders(self, train_batch_size=10, valid_batch_size=1):
         self.train_batch_size=train_batch_size
         self.valid_batch_size=valid_batch_size
 
-        train_dataloader=DataLoader(self.train_seq2seq, batch_size=self.train_batch_size,collate_fn=collate_fn)
-        valid_dataloader=DataLoader(self.valid_seq2seq, batch_size=self.valid_batch_size, collate_fn=collate_fn)
+        train_dataloader=DataLoader(self.train_seq2seq, batch_size=self.train_batch_size,collate_fn=self.collate_fn)
+        valid_dataloader=DataLoader(self.valid_seq2seq, batch_size=self.valid_batch_size, collate_fn=self.collate_fn)
         return train_dataloader, valid_dataloader
 
     @classmethod
     def create(cls, train_x, train_y, valid_x, valid_y, min_freq=2, max_vocab=60000, min_ntoks=1, max_ntoks=7,
-               TOK_XX=TOK_XX, tokenizer=Tokenizer):
+               TOK_XX=TOK_XX, tokenizer=Tokenizer, device='cpu'):
         train_seq_x = SeqData.create(train_x, max_vocab, min_freq, TOK_XX, tokenizer)
         train_seq_y = SeqData.create(train_y, max_vocab, min_freq, TOK_XX, tokenizer)
 
@@ -221,11 +225,11 @@ class Seq2SeqDataManager():
         train_seq2seq = Seq2SeqDataset.create(train_seq_x, train_seq_y, min_ntoks, max_ntoks)
         valid_seq2seq = Seq2SeqDataset.create(valid_seq_x, valid_seq_y, min_ntoks, max_ntoks, False, True,
                                               train_seq2seq.seq_x.vocab, train_seq2seq.seq_y.vocab)
-        return cls(train_seq2seq, valid_seq2seq)
+        return cls(train_seq2seq, valid_seq2seq, device)
 
     @classmethod
     def create_from_txt(cls, train_filename, valid_filename=None, min_freq=2, max_vocab=60000, min_ntoks=1, max_ntoks=7,
-                        TOK_XX=TOK_XX, tokenizer=Tokenizer, valid_perc=.1, seed=1, switch_pair=True):
+                        TOK_XX=TOK_XX, tokenizer=Tokenizer, valid_perc=.1, seed=1, switch_pair=True, device='cpu'):
         """if valid has filename loads validation set from there, otherwise makes valid set from train set using
         valid perc"""
 
@@ -251,4 +255,4 @@ class Seq2SeqDataManager():
             train_x=train_x[rands>valid_perc]
             train_y=train_y[rands>valid_perc]
 
-        return cls.create(train_x, train_y, valid_x, valid_y, min_freq, max_vocab, min_ntoks, max_ntoks, TOK_XX, tokenizer)
+        return cls.create(train_x, train_y, valid_x, valid_y, min_freq, max_vocab, min_ntoks, max_ntoks, TOK_XX, tokenizer, device)

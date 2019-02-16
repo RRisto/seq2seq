@@ -4,12 +4,11 @@ from masked_cross_entropy import *
 
 
 class Attn(nn.Module):
-    def __init__(self, method, hidden_size, USE_CUDA=None):
+    def __init__(self, method, hidden_size):
         super(Attn, self).__init__()
 
         self.method = method
         self.hidden_size = hidden_size
-        #self.USE_CUDA=USE_CUDA
 
         if self.method == 'general':
             self.attn = nn.Linear(self.hidden_size, hidden_size)

@@ -12,6 +12,7 @@ from encoder import EncoderRNN
 from utils import print_summary
 
 USE_CUDA = False
+DEVICE='cpu'
 #PAD_token = 1
 #SOS_token = 1
 #SOS_token = 2
@@ -24,7 +25,7 @@ MIN_COUNT = 3
 
 ## Get data
 #data_manager=Seq2SeqDataManager.create_from_txt('data/eng-fra_sub.txt')
-data_manager=Seq2SeqDataManager.create_from_txt('data/eng-fra_sub.txt', min_freq=MIN_COUNT, min_ntoks=MIN_LENGTH, max_ntoks=MAX_LENGTH, switch_pair=True)
+data_manager=Seq2SeqDataManager.create_from_txt('data/eng-fra_sub.txt', min_freq=MIN_COUNT, min_ntoks=MIN_LENGTH, max_ntoks=MAX_LENGTH, switch_pair=True, )
 #data_manager=Seq2SeqDataManager.create_from_txt('data/eng-fra.txt', min_ntoks=3, max_ntoks=10)
 ##test
 train_batch_size = 100
@@ -70,7 +71,7 @@ criterion = nn.CrossEntropyLoss()
 
 ##train helper
 def train_batch(input_batches, input_lengths, target_batches, target_lengths, encoder, decoder, encoder_optimizer,
-                decoder_optimizer, batch_size, clip, USE_CUDA, MAX_LENGTH, loss_func=masked_cross_entropy, TOK_XX=TOK_XX, device='cpu'):
+                decoder_optimizer, batch_size, clip, MAX_LENGTH, loss_func=masked_cross_entropy, TOK_XX=TOK_XX, device='cpu'):
     # Zero gradients of both optimizers
     encoder_optimizer.zero_grad()
     decoder_optimizer.zero_grad()
@@ -125,7 +126,7 @@ def train_batch(input_batches, input_lengths, target_batches, target_lengths, en
     return loss.data, ec, dc
 
 def valid_batch(encoder, decoder, val_input_batches, val_input_lengths, val_target_batches, val_target_lengths,
-                valid_batch_size, USE_CUDA,  MAX_LENGTH, TOK_XX=TOK_XX, device='cpu'):
+                valid_batch_size, MAX_LENGTH, TOK_XX=TOK_XX, device='cpu'):
     encoder_outputs, encoder_hidden = encoder(val_input_batches, val_input_lengths, None)
 
     # Create starting vectors for decoder
@@ -166,9 +167,7 @@ def valid_batch(encoder, decoder, val_input_batches, val_input_lengths, val_targ
             else:
                 decoded_words[i].append(data_manager.train_seq2seq.seq_y.vocab.itos[ni.item()])  # another change
         # Next input is chosen word
-        decoder_input = torch.LongTensor(topi.squeeze())
-        if USE_CUDA:
-            decoder_input = decoder_input.cuda()
+        decoder_input = torch.tensor(topi.squeeze(), device=device)
 
         with torch.no_grad():
             loss = masked_cross_entropy(
@@ -219,7 +218,7 @@ def fit(epochs, encoder, encoder_optimizer, decoder, decoder_optimizer, batch_si
 
             loss, ec, dc = train_batch(
                 input_batches, input_lengths, target_batches, target_lengths, encoder, decoder, encoder_optimizer,
-                decoder_optimizer, train_batch_size, clip, USE_CUDA,MAX_LENGTH, loss_func, TOK_XX, device)
+                decoder_optimizer, train_batch_size, clip, MAX_LENGTH, loss_func, TOK_XX, device)
 
             nbatches_train+=1
             loss_total_train += loss
@@ -239,7 +238,7 @@ def fit(epochs, encoder, encoder_optimizer, decoder, decoder_optimizer, batch_si
                 valid_batch_size_temp=val_input_batches.size()[1]
             loss, decoder_attentions, decoded_words=valid_batch(encoder, decoder, val_input_batches, val_input_lengths,
                                                                 val_target_batches, val_target_lengths,
-                                                                valid_batch_size_temp, USE_CUDA, MAX_LENGTH, TOK_XX, device)
+                                                                valid_batch_size_temp, MAX_LENGTH, TOK_XX, device)
             nbatches_valid+=1
             loss_total_valid+=loss
 
@@ -288,12 +287,12 @@ def predict(text, encoder, decoder, data_manager, max_length=10, device='cpu'):
 
 #test
 fit(n_epochs, encoder, encoder_optimizer, decoder, decoder_optimizer, train_batch_size, valid_batch_size, clip,MAX_LENGTH+1,
-  masked_cross_entropy, train_dl=train_dataloader, valid_dl=valid_dataloader)
+  masked_cross_entropy, train_dl=train_dataloader, valid_dl=valid_dataloader, device=DEVICE)
 
-predicted_text=predict('i loved you.', encoder, decoder, data_manager)
+
 original_xtext='Je suis sûr.'
 original_ytext='I am sure.'
-predicted_text=predict(original_xtext, encoder, decoder, data_manager)
+predicted_text=predict(original_xtext, encoder, decoder, data_manager, device=DEVICE)
 print(f'original text: {original_xtext}')
 print(f'original answer: {original_ytext}')
 print(f'predicted text: {predicted_text}')
