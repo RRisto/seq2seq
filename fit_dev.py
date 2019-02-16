@@ -25,7 +25,8 @@ MIN_COUNT = 3
 
 ## Get data
 #data_manager=Seq2SeqDataManager.create_from_txt('data/eng-fra_sub.txt')
-data_manager=Seq2SeqDataManager.create_from_txt('data/eng-fra_sub.txt', min_freq=MIN_COUNT, min_ntoks=MIN_LENGTH, max_ntoks=MAX_LENGTH, switch_pair=True, )
+data_manager=Seq2SeqDataManager.create_from_txt('data/eng-fra_sub.txt', min_freq=MIN_COUNT, min_ntoks=MIN_LENGTH,
+                                                max_ntoks=MAX_LENGTH, switch_pair=True, device=DEVICE)
 #data_manager=Seq2SeqDataManager.create_from_txt('data/eng-fra.txt', min_ntoks=3, max_ntoks=10)
 ##test
 train_batch_size = 100
