@@ -168,18 +168,19 @@ class Seq2SeqDataset(Dataset):
                                    add_EOS=False)
         return cls(seq_x, seq_y, min_ntoks, max_ntoks)
 
-def to_padded_tensor(sequences, pad_end=True, pad_idx=TOK_XX.PAD_id, transpose=True):
+def to_padded_tensor(sequences, pad_end=True, pad_idx=TOK_XX.PAD_id, transpose=True, device='cpu'):
     """turns sequences of token ids into tensro with padding and optionally transpose"""
-    lens=[len(seq) for seq in sequences]
+    lens=torch.tensor([len(seq) for seq in sequences], device=device)
     max_len=max(lens)
-    tens = torch.zeros(len(sequences), max_len).long() + pad_idx
+    tens = torch.zeros(len(sequences), max_len, device=device).long() + pad_idx
     for i, toks in enumerate(sequences):
         if pad_end:
-            tens[i, 0:len(toks)] = torch.LongTensor(toks)
+            tens[i, 0:len(toks)] = torch.tensor(toks)
         else:
-            tens[i, -len(toks):] = torch.LongTensor(toks)
+            tens[i, -len(toks):] = torch.tensor(toks)
     if transpose:
         tens=tens.transpose(0, 1)
+
     return tens, lens
 
 def collate_fn(data):

@@ -5,7 +5,7 @@ from attention import Attn
 
 
 class BahdanauAttnDecoderRNN(nn.Module):
-    def __init__(self, hidden_size, output_size, max_length, USE_CUDA, n_layers=1, dropout_p=0.1):
+    def __init__(self, hidden_size, output_size, max_length, n_layers=1, dropout_p=0.1):
         super(BahdanauAttnDecoderRNN, self).__init__()
 
         # Define parameters
@@ -14,12 +14,12 @@ class BahdanauAttnDecoderRNN(nn.Module):
         self.n_layers = n_layers
         self.dropout_p = dropout_p
         self.max_length = max_length
-        self.USE_CUDA=USE_CUDA
+
 
         # Define layers
         self.embedding = nn.Embedding(output_size, hidden_size)
         self.dropout = nn.Dropout(dropout_p)
-        self.attn = Attn('concat', hidden_size, self.USE_CUDA)
+        self.attn = Attn('concat', hidden_size)
         self.gru = nn.GRU(hidden_size, hidden_size, n_layers, dropout=dropout_p)
         self.out = nn.Linear(hidden_size, output_size)
 
@@ -49,7 +49,7 @@ class BahdanauAttnDecoderRNN(nn.Module):
 
 
 class LuongAttnDecoderRNN(nn.Module):
-    def __init__(self, attn_model, hidden_size, output_size, USE_CUDA, n_layers=1, dropout=0.1):
+    def __init__(self, attn_model, hidden_size, output_size, n_layers=1, dropout=0.1):
         super(LuongAttnDecoderRNN, self).__init__()
 
         # Keep for reference
@@ -58,7 +58,7 @@ class LuongAttnDecoderRNN(nn.Module):
         self.output_size = output_size
         self.n_layers = n_layers
         self.dropout = dropout
-        self.USE_CUDA=USE_CUDA
+        #self.USE_CUDA=USE_CUDA
 
         # Define layers
         self.embedding = nn.Embedding(output_size, hidden_size)
@@ -69,7 +69,7 @@ class LuongAttnDecoderRNN(nn.Module):
 
         # Choose attention model
         if attn_model != 'none':
-            self.attn = Attn(attn_model, hidden_size, self.USE_CUDA)
+            self.attn = Attn(attn_model, hidden_size)
 
     def forward(self, input_seq, last_hidden, encoder_outputs):
         # Note: we run this one step at a time

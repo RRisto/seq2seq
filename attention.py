@@ -4,12 +4,12 @@ from masked_cross_entropy import *
 
 
 class Attn(nn.Module):
-    def __init__(self, method, hidden_size, USE_CUDA):
+    def __init__(self, method, hidden_size, USE_CUDA=None):
         super(Attn, self).__init__()
 
         self.method = method
         self.hidden_size = hidden_size
-        self.USE_CUDA=USE_CUDA
+        #self.USE_CUDA=USE_CUDA
 
         if self.method == 'general':
             self.attn = nn.Linear(self.hidden_size, hidden_size)
@@ -22,10 +22,10 @@ class Attn(nn.Module):
         max_len = encoder_outputs.size(0)
         this_batch_size = encoder_outputs.size(1)
         # Create variable to store attention energies
-        attn_energies = torch.zeros(this_batch_size, max_len) # B x S
+        attn_energies = torch.zeros(this_batch_size, max_len, device=encoder_outputs.device) # B x S
 
-        if self.USE_CUDA:
-            attn_energies = attn_energies.cuda()
+       # if self.USE_CUDA:
+        #    attn_energies = attn_energies.cuda()
         # For each batch of encoder outputs
         for b in range(this_batch_size):
             # Calculate energy for each encoder output

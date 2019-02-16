@@ -60,7 +60,7 @@ evaluate_every = 1
 
 # Initialize models
 encoder = EncoderRNN(len(data_manager.train_seq2seq.seq_x.vocab.itos), hidden_size, n_layers, dropout=dropout)
-decoder = LuongAttnDecoderRNN(attn_model, hidden_size, len(data_manager.train_seq2seq.seq_y.vocab.itos), USE_CUDA, n_layers, dropout=dropout)
+decoder = LuongAttnDecoderRNN(attn_model, hidden_size, len(data_manager.train_seq2seq.seq_y.vocab.itos), n_layers, dropout=dropout)
 
 # Initialize optimizers and criterion
 encoder_optimizer = optim.Adam(encoder.parameters(), lr=learning_rate)
@@ -70,7 +70,7 @@ criterion = nn.CrossEntropyLoss()
 
 ##train helper
 def train_batch(input_batches, input_lengths, target_batches, target_lengths, encoder, decoder, encoder_optimizer,
-                decoder_optimizer, batch_size, clip, USE_CUDA, MAX_LENGTH, loss_func=masked_cross_entropy, TOK_XX=TOK_XX):
+                decoder_optimizer, batch_size, clip, USE_CUDA, MAX_LENGTH, loss_func=masked_cross_entropy, TOK_XX=TOK_XX, device='cpu'):
     # Zero gradients of both optimizers
     encoder_optimizer.zero_grad()
     decoder_optimizer.zero_grad()
@@ -80,19 +80,22 @@ def train_batch(input_batches, input_lengths, target_batches, target_lengths, en
     encoder_outputs, encoder_hidden = encoder(input_batches, input_lengths, None)
 
     # Prepare input and output variables
-    decoder_input = torch.LongTensor([TOK_XX.BOS_id] * batch_size)
+    #decoder_input = torch.LongTensor([TOK_XX.BOS_id] * batch_size)
+    decoder_input = torch.tensor([TOK_XX.BOS_id] * batch_size, device=device)
     decoder_hidden = encoder_hidden[:decoder.n_layers]  # Use last (forward) hidden state from encoder
 
+    #target_lengths = torch.tensor(target_lengths, device=device)
     max_target_length = max(target_lengths)
+
     #print(max_target_length)
     #max_target_length = MAX_LENGTH
     #max_target_length = 12
-    all_decoder_outputs = torch.zeros(max_target_length, batch_size, decoder.output_size)
+    all_decoder_outputs = torch.zeros(max_target_length, batch_size, decoder.output_size, device=device)
 
     # Move new Variables to CUDA
-    if USE_CUDA:
-        decoder_input = decoder_input.cuda()
-        all_decoder_outputs = all_decoder_outputs.cuda()
+    #if USE_CUDA:
+        #decoder_input = decoder_input.cuda()
+        #all_decoder_outputs = all_decoder_outputs.cuda()
 
     # Run through decoder one time step at a time
     for t in range(max_target_length):
@@ -107,7 +110,7 @@ def train_batch(input_batches, input_lengths, target_batches, target_lengths, en
     loss = loss_func(
         all_decoder_outputs.transpose(0, 1).contiguous(),  # -> batch x seq
         target_batches.transpose(0, 1).contiguous(),  # -> batch x seq
-        target_lengths, USE_CUDA
+        target_lengths
     )
     loss.backward()
 
@@ -122,21 +125,23 @@ def train_batch(input_batches, input_lengths, target_batches, target_lengths, en
     return loss.data, ec, dc
 
 def valid_batch(encoder, decoder, val_input_batches, val_input_lengths, val_target_batches, val_target_lengths,
-                valid_batch_size, USE_CUDA,  MAX_LENGTH, TOK_XX=TOK_XX):
+                valid_batch_size, USE_CUDA,  MAX_LENGTH, TOK_XX=TOK_XX, device='cpu'):
     encoder_outputs, encoder_hidden = encoder(val_input_batches, val_input_lengths, None)
 
     # Create starting vectors for decoder
     # decoder_input = torch.LongTensor([SOS_token])  # SOS
-    decoder_input = torch.LongTensor([TOK_XX.BOS_id] * valid_batch_size)  # SOS
+    #decoder_input = torch.LongTensor([TOK_XX.BOS_id] * valid_batch_size)  # SOS
+    decoder_input = torch.tensor([TOK_XX.BOS_id] * valid_batch_size, device=device)  # SOS
     decoder_hidden = encoder_hidden[:decoder.n_layers]  # Use last (forward) hidden state from encoder
 
-    if USE_CUDA:
-        decoder_input = decoder_input.cuda()
+    #if USE_CUDA:
+     #   decoder_input = decoder_input.cuda()
 
     # Run through decoder
     val_target_max_len = max(val_target_lengths)
+    #val_target_lengths = torch.tensor(val_target_lengths, device=device)
     #val_target_max_len = MAX_LENGTH
-    all_decoder_outputs = torch.zeros(val_target_max_len, valid_batch_size, decoder.output_size)
+    all_decoder_outputs = torch.zeros(val_target_max_len, valid_batch_size, decoder.output_size, device=device)
 
     # Store output words and attention states
     # decoded_words = []
@@ -169,7 +174,7 @@ def valid_batch(encoder, decoder, val_input_batches, val_input_lengths, val_targ
             loss = masked_cross_entropy(
                 all_decoder_outputs.transpose(0, 1).contiguous(),  # -> batch x seq
                 val_target_batches.transpose(0, 1).contiguous(),  # -> batch x seq
-                val_target_lengths, USE_CUDA
+                val_target_lengths
             )
 
     #return loss, decoder_attentions[:, di+1, :len(encoder_outputs)], decoded_words
@@ -194,7 +199,7 @@ def show_attention(input_sentence, output_words, attentions):
     plt.close()
 
 def fit(epochs, encoder, encoder_optimizer, decoder, decoder_optimizer, batch_size,valid_batch_size, clip, MAX_LENGTH, loss_func=masked_cross_entropy,
-        train_dl=None, valid_dl=None, TOK_XX=TOK_XX):
+        train_dl=None, valid_dl=None, TOK_XX=TOK_XX, device='cpu'):
     eca = 0
     dca = 0
 
@@ -214,7 +219,7 @@ def fit(epochs, encoder, encoder_optimizer, decoder, decoder_optimizer, batch_si
 
             loss, ec, dc = train_batch(
                 input_batches, input_lengths, target_batches, target_lengths, encoder, decoder, encoder_optimizer,
-                decoder_optimizer, train_batch_size, clip, USE_CUDA,MAX_LENGTH, loss_func, TOK_XX)
+                decoder_optimizer, train_batch_size, clip, USE_CUDA,MAX_LENGTH, loss_func, TOK_XX, device)
 
             nbatches_train+=1
             loss_total_train += loss
@@ -234,7 +239,7 @@ def fit(epochs, encoder, encoder_optimizer, decoder, decoder_optimizer, batch_si
                 valid_batch_size_temp=val_input_batches.size()[1]
             loss, decoder_attentions, decoded_words=valid_batch(encoder, decoder, val_input_batches, val_input_lengths,
                                                                 val_target_batches, val_target_lengths,
-                                                                valid_batch_size_temp, USE_CUDA, MAX_LENGTH, TOK_XX)
+                                                                valid_batch_size_temp, USE_CUDA, MAX_LENGTH, TOK_XX, device)
             nbatches_valid+=1
             loss_total_valid+=loss
 
@@ -243,15 +248,16 @@ def fit(epochs, encoder, encoder_optimizer, decoder, decoder_optimizer, batch_si
         #show_attention(data_manager.valid_seq2seq.seq_x.vocab.textify(val_input_batches[0]), decoded_words[0], decoder_attentions[0])
 
 
-def predict(text, encoder, decoder, data_manager, max_length=10):
+def predict(text, encoder, decoder, data_manager, max_length=10, device='cpu'):
     encoder.train(False)
     decoder.train(False)
     text=normalize_string(text)
     input_toks_id=data_manager.train_seq2seq.seq_x.numericalize(text)
-    input_batch, input_length=to_padded_tensor([input_toks_id])
+    input_batch, input_length=to_padded_tensor([input_toks_id], device=device)
 
+    #input_batch=input_batch.to(device)
     encoder_outputs, encoder_hidden = encoder(input_batch, input_length, None)
-    decoder_input = torch.LongTensor([TOK_XX.BOS_id])  # SOS
+    decoder_input = torch.tensor([TOK_XX.BOS_id], device=device)  # SOS
     decoder_hidden = encoder_hidden[:decoder.n_layers]
 
     decoded_toks_id = []
@@ -270,14 +276,14 @@ def predict(text, encoder, decoder, data_manager, max_length=10):
         else:
             decoded_toks_id.append(ni.item())
 
-        decoder_input = torch.LongTensor([ni])
-        if USE_CUDA:
-            decoder_input = decoder_input.cuda()
+        decoder_input = torch.tensor([ni], device=device)
+        #if USE_CUDA:
+            #decoder_input = decoder_input.cuda()
+        #decoder_input = decoder_input.to(device)
 
     #turn them into words
     text=data_manager.train_seq2seq.seq_y.textify(decoded_toks_id)
     return text
-
 
 
 #test
