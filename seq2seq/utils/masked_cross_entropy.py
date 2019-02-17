@@ -7,7 +7,6 @@ def sequence_mask(sequence_length, max_len=None):
         max_len = sequence_length.data.max()
     batch_size = sequence_length.size(0)
     seq_range = torch.arange(0, max_len).long()
-    # seq_range = torch.range(0, max_len - 1).long()
     seq_range_expand = seq_range.unsqueeze(0).expand(batch_size, max_len)
     if sequence_length.is_cuda:
         seq_range_expand = seq_range_expand.cuda()
@@ -17,7 +16,6 @@ def sequence_mask(sequence_length, max_len=None):
 
 
 def masked_cross_entropy(logits, target, length):
-
     """
     Args:
         logits: A Variable containing a FloatTensor of size

@@ -1,5 +1,5 @@
 import torch.nn as nn
-from masked_cross_entropy import *
+from seq2seq.utils.masked_cross_entropy import *
 
 
 class EncoderRNN(nn.Module):
@@ -19,6 +19,6 @@ class EncoderRNN(nn.Module):
         embedded = self.embedding(input_seqs)
         packed = torch.nn.utils.rnn.pack_padded_sequence(embedded, input_lengths)
         outputs, hidden = self.gru(packed, hidden)
-        outputs, output_lengths = torch.nn.utils.rnn.pad_packed_sequence(outputs) # unpack (back to padded)
-        outputs = outputs[:, :, :self.hidden_size] + outputs[:, : ,self.hidden_size:]  # Sum bidirectional outputs
+        outputs, output_lengths = torch.nn.utils.rnn.pad_packed_sequence(outputs)  # unpack (back to padded)
+        outputs = outputs[:, :, :self.hidden_size] + outputs[:, :, self.hidden_size:]  # Sum bidirectional outputs
         return outputs, hidden

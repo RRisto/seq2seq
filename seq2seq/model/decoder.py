@@ -1,7 +1,7 @@
 import torch.nn as nn
 import torch.nn.functional as F
-from masked_cross_entropy import *
-from attention import Attn
+from seq2seq.utils.masked_cross_entropy import *
+from seq2seq.model.attention import Attn
 
 
 class BahdanauAttnDecoderRNN(nn.Module):
@@ -58,8 +58,6 @@ class LuongAttnDecoderRNN(nn.Module):
         self.output_size = output_size
         self.n_layers = n_layers
         self.dropout = dropout
-        #self.USE_CUDA=USE_CUDA
-
         # Define layers
         self.embedding = nn.Embedding(output_size, hidden_size)
         self.embedding_dropout = nn.Dropout(dropout)
@@ -93,7 +91,6 @@ class LuongAttnDecoderRNN(nn.Module):
         rnn_output = rnn_output.squeeze(0)  # S=1 x B x N -> B x N
         context = context.squeeze(1)  # B x S=1 x N -> B x N
         concat_input = torch.cat((rnn_output, context), 1)
-        #concat_output = F.tanh(self.concat(concat_input))
         concat_output = torch.tanh(self.concat(concat_input))
 
         # Finally predict next token (Luong eq. 6, without softmax)

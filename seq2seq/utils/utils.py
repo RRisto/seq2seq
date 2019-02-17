@@ -1,6 +1,5 @@
 import time
 
-
 def time_since(start, end):
     hours, rem = divmod(end - start, 3600)
     minutes, seconds = divmod(rem, 60)

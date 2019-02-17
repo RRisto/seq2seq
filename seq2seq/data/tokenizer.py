@@ -1,8 +1,6 @@
-import os, re
-import unicodedata
-from concurrent.futures import ThreadPoolExecutor
-import spacy as spacy
+import os, re, unicodedata, spacy
 from spacy.symbols import ORTH
+from concurrent.futures import ThreadPoolExecutor
 
 
 class TOK_XX:
@@ -12,19 +10,22 @@ class TOK_XX:
     EOS = '<eos>'
     UNK = '<unk>'
     PAD = '<pad>'
-    TOK_XX=[UNK, PAD, BOS, EOS]
-    TOK_XX_ids={k:v for v, k in enumerate(TOK_XX)}
-    UNK_id=TOK_XX_ids[UNK]
-    PAD_id=TOK_XX_ids[PAD]
-    BOS_id=TOK_XX_ids[BOS]
+    TOK_XX = [UNK, PAD, BOS, EOS]
+    TOK_XX_ids = {k: v for v, k in enumerate(TOK_XX)}
+    UNK_id = TOK_XX_ids[UNK]
+    PAD_id = TOK_XX_ids[PAD]
+    BOS_id = TOK_XX_ids[BOS]
     EOS_id = TOK_XX_ids[EOS]
+
 
 def partition(a, sz):
     """splits iterables a in equal parts of size sz"""
-    return [a[i:i+sz] for i in range(0, len(a), sz)]
+    return [a[i:i + sz] for i in range(0, len(a), sz)]
+
 
 def partition_by_cores(a):
-    return partition(a, len(a)//num_cpus() + 1)
+    return partition(a, len(a) // num_cpus() + 1)
+
 
 def num_cpus():
     try:
@@ -32,23 +33,24 @@ def num_cpus():
     except AttributeError:
         return os.cpu_count()
 
+
 class Tokenizer():
     def __init__(self, lang='en'):
         self.re_br = re.compile(r'<\s*br\s*/?>', re.IGNORECASE)
         self.tok = spacy.load(lang)
-        for w in ('<bos>','<eos>','<unk>'):
+        for w in ('<bos>', '<eos>', '<unk>'):
             self.tok.tokenizer.add_special_case(w, [{ORTH: w}])
 
-    def sub_br(self,x):
+    def sub_br(self, x):
         return self.re_br.sub("\n", x)
 
-    #def spacy_tok(self,x):
-     #   return [t.text for t in self.tok.tokenizer(self.sub_br(x))]
+    # def spacy_tok(self,x):
+    #   return [t.text for t in self.tok.tokenizer(self.sub_br(x))]
 
-    def spacy_tok(self,x):
-        #spacy tokenizer
-        #return [t.text for t in self.tok.tokenizer(self.sub_br(x))]
-        #simple split
+    def spacy_tok(self, x):
+        # spacy tokenizer
+        # return [t.text for t in self.tok.tokenizer(self.sub_br(x))]
+        # simple split
         return [t for t in (self.sub_br(x).split())]
 
     re_rep = re.compile(r'(\S)(\1{3,})')
@@ -57,27 +59,27 @@ class Tokenizer():
     @staticmethod
     def replace_rep(m):
         TK_REP = 'tk_rep'
-        c,cc = m.groups()
-        return f' {TK_REP} {len(cc)+1} {c} '
+        c, cc = m.groups()
+        return f' {TK_REP} {len(cc) + 1} {c} '
 
     @staticmethod
     def replace_wrep(m):
         TK_WREP = 'tk_wrep'
-        c,cc = m.groups()
-        return f' {TK_WREP} {len(cc.split())+1} {c} '
+        c, cc = m.groups()
+        return f' {TK_WREP} {len(cc.split()) + 1} {c} '
 
     @staticmethod
     def do_caps(ss):
-        TOK_UP,TOK_SENT,TOK_MIX = ' t_up ',' t_st ',' t_mx '
+        TOK_UP, TOK_SENT, TOK_MIX = ' t_up ', ' t_st ', ' t_mx '
         res = []
-        prev='.'
+        prev = '.'
         re_word = re.compile('\w')
         re_nonsp = re.compile('\S')
         for s in re.findall(r'\w+|\W+', ss):
-            res += ([TOK_UP,s.lower()] if (s.isupper() and (len(s)>2))
-    #                 else [TOK_SENT,s.lower()] if (s.istitle() and re_word.search(prev))
+            res += ([TOK_UP, s.lower()] if (s.isupper() and (len(s) > 2))
+                    #                 else [TOK_SENT,s.lower()] if (s.istitle() and re_word.search(prev))
                     else [s.lower()])
-    #         if re_nonsp.search(s): prev = s
+        #         if re_nonsp.search(s): prev = s
         return ''.join(res)
 
     def proc_text(self, s):
@@ -94,13 +96,13 @@ class Tokenizer():
         return [tok.proc_text(s) for s in ss]
 
     @staticmethod
-    def proc_all_mp(ss, lang='en', ncpus = None):
-        ncpus = ncpus or num_cpus()//2
-        if ncpus==0:
-            ncpus=1
-        #with ProcessPoolExecutor(ncpus) as e:
+    def proc_all_mp(ss, lang='en', ncpus=None):
+        ncpus = ncpus or num_cpus() // 2
+        if ncpus == 0:
+            ncpus = 1
+        # with ProcessPoolExecutor(ncpus) as e:
         with ThreadPoolExecutor(ncpus) as e:
-            return sum(e.map(Tokenizer.proc_all, ss, [lang]*len(ss)), [])
+            return sum(e.map(Tokenizer.proc_all, ss, [lang] * len(ss)), [])
 
 
 def unicode_to_ascii(s):
@@ -109,6 +111,7 @@ def unicode_to_ascii(s):
         if unicodedata.category(c) != 'Mn'
     )
 
+
 def normalize_string(s):
     """ Lowercase, trim, and remove non-letter characters"""
     s = unicode_to_ascii(s.lower().strip())
@@ -116,6 +119,7 @@ def normalize_string(s):
     s = re.sub(r"[^a-zA-Z,.!?]+", r" ", s)
     s = re.sub(r"\s+", r" ", s).strip()
     return s
+
 
 def read_pairs_txt(filename):
     lines = open(filename).read().strip().split('\n')
