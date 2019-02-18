@@ -64,7 +64,8 @@ def valid_batch(encoder, decoder, data_manager, val_input_batches, val_input_len
     all_decoder_outputs = torch.zeros(val_target_max_len, valid_batch_size, decoder.output_size, device=device)
 
     # Store output words and attention states
-    decoded_words = [[]] * valid_batch_size
+    #decoded_words = [[]] * valid_batch_size
+    decoded_words= [[] for _ in range(valid_batch_size)]
     decoder_attentions = torch.zeros(valid_batch_size, MAX_LENGTH + 1, MAX_LENGTH + 1)
 
     for di in range(val_target_max_len):
@@ -79,11 +80,12 @@ def valid_batch(encoder, decoder, data_manager, val_input_batches, val_input_len
             ni = topi[i][0]
             if ni.item() == TOK_XX.EOS_id:
                 decoded_words[i].append(TOK_XX.EOS)
-                break
+                #break
             else:
                 decoded_words[i].append(data_manager.train_seq2seq.seq_y.vocab.itos[ni.item()])
         # Next input is chosen word
-        decoder_input = torch.tensor(topi.squeeze(), device=device)
+        #decoder_input = torch.tensor(topi.squeeze(), device=device)
+        decoder_input = topi.squeeze().clone().detach()
 
         with torch.no_grad():
             loss = masked_cross_entropy(
@@ -113,6 +115,8 @@ def show_attention(input_sentence, output_words, attentions):
     ax.set_xlabel('input')
     ax.set_ylabel('output')
 
+    print(f'len input sentnece {len(input_sentence.split(" "))}')
+    print(f'len output words {len(output_words)}')
     ax.set_xticklabels([''] + input_sentence.split(' ') + ['<EOS>'], rotation=90)
     ax.set_yticklabels([''] + output_words)
 
@@ -176,7 +180,7 @@ def fit(epochs, encoder, encoder_optimizer, decoder, decoder_optimizer, data_man
         print_summary(start, epoch, epochs, train_loss_avg.item(), valid_loss_avg.item())
 
         if epoch % show_attention_every == 0:
-            show_attention(data_manager.valid_seq2seq.seq_x.vocab.textify(val_input_batches[0]), decoded_words[0],
+            show_attention(data_manager.valid_seq2seq.seq_x.vocab.textify(val_input_batches.t()[0]), decoded_words[0],
                            decoder_attentions)
             #show_attention(data_manager.valid_seq2seq.seq_x.vocab.textify(val_input_batches[0]), decoded_words[0],
              #              decoder_attentions[0])
