@@ -64,7 +64,6 @@ def valid_batch(encoder, decoder, data_manager, val_input_batches, val_input_len
     all_decoder_outputs = torch.zeros(val_target_max_len, valid_batch_size, decoder.output_size, device=device)
 
     # Store output words and attention states
-    #decoded_words = [[]] * valid_batch_size
     decoded_words= [[] for _ in range(valid_batch_size)]
     decoder_attentions = torch.zeros(valid_batch_size, MAX_LENGTH + 1, MAX_LENGTH + 1)
 
@@ -80,11 +79,9 @@ def valid_batch(encoder, decoder, data_manager, val_input_batches, val_input_len
             ni = topi[i][0]
             if ni.item() == TOK_XX.EOS_id:
                 decoded_words[i].append(TOK_XX.EOS)
-                #break
             else:
                 decoded_words[i].append(data_manager.train_seq2seq.seq_y.vocab.itos[ni.item()])
         # Next input is chosen word
-        #decoder_input = torch.tensor(topi.squeeze(), device=device)
         decoder_input = topi.squeeze().clone().detach()
 
         with torch.no_grad():
@@ -94,46 +91,51 @@ def valid_batch(encoder, decoder, data_manager, val_input_batches, val_input_len
                 val_target_lengths)
 
     return loss, decoder_attentions[0, :di + 1, :len(encoder_outputs)], decoded_words
-    return loss, decoder_attentions, decoded_words
+    #return loss, decoder_attentions, decoded_words
 
 
 
 def show_attention(input_sentence, output_words, attentions):
     # Set up figure with colorbar
-    fig = plt.figure()
-    ax = fig.add_subplot(111)
-    cax = ax.matshow(attentions.numpy(), cmap='bone')
-    fig.colorbar(cax)
-
-    #df_attentions=pd.DataFrame(attentions.numpy())
-    #df_attentions.index=output_words
-    #df_attentions.columns=input_sentence.split(' ') + ['<EOS>']
-
-    #fig, ax =sns.heatmap(df_attentions, cmap='Blues')
+    #fig = plt.figure()
+    #ax = fig.add_subplot(111)
+    #cax = ax.matshow(attentions.numpy(), cmap='bone')
+    #fig.colorbar(cax)
 
     # Set up axes
-    ax.set_xlabel('input')
-    ax.set_ylabel('output')
+    #ax.set_xlabel('input')
+    #ax.set_ylabel('output')
 
-    print(f'len input sentnece {len(input_sentence.split(" "))}')
-    print(f'len output words {len(output_words)}')
-    ax.set_xticklabels([''] + input_sentence.split(' ') + ['<EOS>'], rotation=90)
-    ax.set_yticklabels([''] + output_words)
+    #print(f'len input sentnece {len(input_sentence.split(" "))}')
+    #print(f'len output words {len(output_words)}')
+    #ax.set_xticklabels([''] + input_sentence.split(' ') + ['<EOS>'], rotation=90)
+    #ax.set_yticklabels([''] + output_words)
 
     # Show label at every tick
-    ax.xaxis.set_major_locator(ticker.MultipleLocator(1))
-    ax.yaxis.set_major_locator(ticker.MultipleLocator(1))
-    ax.xaxis.set_label_position('top')
+    #ax.xaxis.set_major_locator(ticker.MultipleLocator(1))
+    #ax.yaxis.set_major_locator(ticker.MultipleLocator(1))
+    #ax.xaxis.set_label_position('top')
 
-    plt.tight_layout()
+    #plt.tight_layout()
+    #plt.show()
+    #plt.close()
+
+    df_attentions=pd.DataFrame(attentions.numpy())
+    df_attentions.index=output_words
+    df_attentions.columns=input_sentence.split(' ')
+
+    ax =sns.heatmap(df_attentions, cmap='Blues', robust=True, cbar=False, cbar_kws={"orientation": "horizontal"})
+    ax.xaxis.tick_top()  # x axis on top
+    ax.xaxis.set_label_position('top')
+    ax.set_xlabel('input')
+    ax.set_ylabel('output')
     plt.show()
     plt.close()
 
 
 def fit(epochs, encoder, encoder_optimizer, decoder, decoder_optimizer, data_manager, batch_size=100,
-        valid_batch_size=100, clip=50.0,
-        MAX_LENGTH=10, loss_func=masked_cross_entropy, train_dl=None, valid_dl=None, TOK_XX=TOK_XX, device='cpu',
-        show_attention_every=10):
+        valid_batch_size=100, clip=50.0, MAX_LENGTH=10, loss_func=masked_cross_entropy, train_dl=None, valid_dl=None,
+        TOK_XX=TOK_XX, device='cpu', show_attention_every=10):
     eca = 0
     dca = 0
 
@@ -182,8 +184,6 @@ def fit(epochs, encoder, encoder_optimizer, decoder, decoder_optimizer, data_man
         if epoch % show_attention_every == 0:
             show_attention(data_manager.valid_seq2seq.seq_x.vocab.textify(val_input_batches.t()[0]), decoded_words[0],
                            decoder_attentions)
-            #show_attention(data_manager.valid_seq2seq.seq_x.vocab.textify(val_input_batches[0]), decoded_words[0],
-             #              decoder_attentions[0])
 
 
 def predict(text, encoder, decoder, data_manager, max_length=10, device='cpu'):

@@ -9,7 +9,6 @@ from seq2seq.train import fit, predict
 
 DEVICE = 'cpu'
 MIN_LENGTH = 3
-# MAX_LENGTH = 25
 MAX_LENGTH = 10
 MIN_COUNT = 3
 
@@ -26,7 +25,6 @@ train_dataloader, valid_dataloader = data_manager.get_dataloaders(train_batch_si
 
 ##model conf
 attn_model = 'dot'
-# hidden_size = 500
 hidden_size = 50
 n_layers = 2
 dropout = 0.1
@@ -37,15 +35,7 @@ teacher_forcing_ratio = 0.5
 # learning_rate = 0.0001
 learning_rate = 0.001
 decoder_learning_ratio = 5.0
-# n_epochs = 50000
 n_epochs = 20
-epoch = 0
-# plot_every = 20
-plot_every = 2000
-# print_every = 100
-
-# evaluate_every = 1000
-evaluate_every = 1
 
 # Initialize models
 encoder = EncoderRNN(len(data_manager.train_seq2seq.seq_x.vocab.itos), hidden_size, n_layers, dropout=dropout)
@@ -59,8 +49,7 @@ criterion = nn.CrossEntropyLoss()
 
 # test
 fit(n_epochs, encoder, encoder_optimizer, decoder, decoder_optimizer, data_manager, train_batch_size, valid_batch_size,
-    clip, MAX_LENGTH + 1,
-    masked_cross_entropy, train_dl=train_dataloader, valid_dl=valid_dataloader, device=DEVICE)
+    clip, MAX_LENGTH + 1, masked_cross_entropy, train_dl=train_dataloader, valid_dl=valid_dataloader, device=DEVICE)
 
 original_xtext = 'Je suis sûr.'
 original_ytext = 'I am sure.'
