@@ -108,8 +108,7 @@ class Tokenizer():
 def unicode_to_ascii(s):
     return ''.join(
         c for c in unicodedata.normalize('NFD', s)
-        if unicodedata.category(c) != 'Mn'
-    )
+        if unicodedata.category(c) != 'Mn' )
 
 
 def normalize_string(s):
@@ -123,7 +122,6 @@ def normalize_string(s):
 
 def read_pairs_txt(filename):
     lines = open(filename).read().strip().split('\n')
-
     # Split every line into pairs and normalize
     pairs = [[normalize_string(s) for s in l.split('\t')] for l in lines]
     return pairs
