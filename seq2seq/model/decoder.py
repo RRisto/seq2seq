@@ -16,7 +16,6 @@ class BahdanauAttnDecoderRNN(nn.Module):
         self.max_length = max_length
 
         # Define layers
-        #self.embedding = nn.Embedding(output_size, hidden_size)
         self.embedding = self._init_embedding(itos, self.hidden_size, emb_vecs)
         self.dropout = nn.Dropout(dropout_p)
         self.attn = Attn('concat', self.hidden_size)
@@ -110,7 +109,6 @@ class LuongAttnDecoderRNN(nn.Module):
 
         # Finally predict next token (Luong eq. 6, without softmax)
         output = self.out(concat_output)
-
         # Return final output, hidden state, and attention weights (for visualization)
         return output, hidden, attn_weights
 

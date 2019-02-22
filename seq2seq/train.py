@@ -91,35 +91,9 @@ def valid_batch(encoder, decoder, data_manager, val_input_batches, val_input_len
                 val_target_lengths)
 
     return loss, decoder_attentions[0, :di + 1, :len(encoder_outputs)], decoded_words
-    #return loss, decoder_attentions, decoded_words
-
 
 
 def show_attention(input_sentence, output_words, attentions):
-    # Set up figure with colorbar
-    #fig = plt.figure()
-    #ax = fig.add_subplot(111)
-    #cax = ax.matshow(attentions.numpy(), cmap='bone')
-    #fig.colorbar(cax)
-
-    # Set up axes
-    #ax.set_xlabel('input')
-    #ax.set_ylabel('output')
-
-    #print(f'len input sentnece {len(input_sentence.split(" "))}')
-    #print(f'len output words {len(output_words)}')
-    #ax.set_xticklabels([''] + input_sentence.split(' ') + ['<EOS>'], rotation=90)
-    #ax.set_yticklabels([''] + output_words)
-
-    # Show label at every tick
-    #ax.xaxis.set_major_locator(ticker.MultipleLocator(1))
-    #ax.yaxis.set_major_locator(ticker.MultipleLocator(1))
-    #ax.xaxis.set_label_position('top')
-
-    #plt.tight_layout()
-    #plt.show()
-    #plt.close()
-
     df_attentions=pd.DataFrame(attentions.numpy())
     df_attentions.index=output_words
     df_attentions.columns=input_sentence.split(' ')
