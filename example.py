@@ -38,9 +38,8 @@ decoder_learning_ratio = 5.0
 n_epochs = 20
 
 # Initialize models
-encoder = EncoderRNN(len(data_manager.train_seq2seq.seq_x.vocab.itos), hidden_size, n_layers, dropout=dropout)
-decoder = LuongAttnDecoderRNN(attn_model, hidden_size, len(data_manager.train_seq2seq.seq_y.vocab.itos), n_layers,
-                              dropout=dropout)
+encoder = EncoderRNN(data_manager.itos_x, hidden_size, n_layers, dropout=dropout, emb_vecs=None)
+decoder = LuongAttnDecoderRNN(attn_model, data_manager.itos_y,hidden_size, n_layers, dropout=dropout, emb_vecs=None)
 
 # Initialize optimizers and criterion
 encoder_optimizer = optim.Adam(encoder.parameters(), lr=learning_rate)

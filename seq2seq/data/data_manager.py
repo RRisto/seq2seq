@@ -204,12 +204,14 @@ def collate_fn(data, device='cpu'):
 
 
 class Seq2SeqDataManager():
-    """class to manage x and y strain and validation equences creation. Helps to create dataloaders"""
+    """class to manage x and y strain and validation sequences creation. Helps to create dataloaders"""
 
     def __init__(self, train_seq2seq, valid_seq2seq, device):
         self.train_seq2seq = train_seq2seq
         self.valid_seq2seq = valid_seq2seq
         self.device = device
+        self.itos_x=self.train_seq2seq.seq_x.vocab.itos
+        self.itos_y=self.train_seq2seq.seq_y.vocab.itos
 
     def collate_fn(self, data):
         return collate_fn(data, self.device)
