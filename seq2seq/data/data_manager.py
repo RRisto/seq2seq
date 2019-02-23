@@ -206,10 +206,11 @@ def collate_fn(data, device='cpu'):
 class Seq2SeqDataManager():
     """class to manage x and y strain and validation sequences creation. Helps to create dataloaders"""
 
-    def __init__(self, train_seq2seq, valid_seq2seq, device):
+    def __init__(self, train_seq2seq, valid_seq2seq, device, max_ntoks):
         self.train_seq2seq = train_seq2seq
         self.valid_seq2seq = valid_seq2seq
         self.device = device
+        self.max_ntoks=max_ntoks
         self.itos_x=self.train_seq2seq.seq_x.vocab.itos
         self.itos_y=self.train_seq2seq.seq_y.vocab.itos
 
@@ -240,7 +241,7 @@ class Seq2SeqDataManager():
         train_seq2seq = Seq2SeqDataset.create(train_seq_x, train_seq_y, min_ntoks, max_ntoks)
         valid_seq2seq = Seq2SeqDataset.create(valid_seq_x, valid_seq_y, min_ntoks, max_ntoks, False, True,
                                               train_seq2seq.seq_x.vocab, train_seq2seq.seq_y.vocab)
-        return cls(train_seq2seq, valid_seq2seq, device)
+        return cls(train_seq2seq, valid_seq2seq, device, max_ntoks)
 
     @classmethod
     def create_from_txt(cls, train_filename, valid_filename=None, min_freq=2, max_vocab=60000, min_ntoks=1, max_ntoks=7,

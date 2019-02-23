@@ -84,6 +84,7 @@ def valid_batch(encoder, decoder, data_manager, val_input_batches, val_input_len
         # Next input is chosen word
         decoder_input = topi.squeeze().clone().detach()
 
+        #todo quess there should be out of loop
         with torch.no_grad():
             loss = masked_cross_entropy(
                 all_decoder_outputs.transpose(0, 1).contiguous(),  # -> batch x seq
