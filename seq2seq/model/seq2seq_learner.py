@@ -8,15 +8,15 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 
-from seq2seq.data.tokenizer import TOK_XX
+from seq2seq.data.data_manager import to_padded_tensor
+from seq2seq.data.tokenizer import TOK_XX, normalize_string
 from seq2seq.model.decoder import LuongAttnDecoderRNN
 from seq2seq.model.encoder import EncoderRNN
-from seq2seq.utils import masked_cross_entropy
+from seq2seq.utils.masked_cross_entropy import masked_cross_entropy
 
 
 class Seq2seqLearner(nn.Module):
-    def __init__(self, data_manager, hidden_size, n_layers, dropout, emb_vecs_x=None, emb_vecs_y=None, attn_model= 'dot',
-                 learning_rate=0.001, decoder_learning_ratio = 5.0):
+    def __init__(self, data_manager, hidden_size, n_layers=2, dropout= 0.1, emb_vecs_x=None, emb_vecs_y=None, attn_model= 'dot'):
         super(Seq2seqLearner, self).__init__()
         self.hidden_size=hidden_size
         self.n_layers=n_layers
@@ -74,7 +74,7 @@ class Seq2seqLearner(nn.Module):
         return all_decoder_outputs
 
     def fit(self, n_epochs, learning_rate = 0.001, decoder_learning_ratio = 5.0, train_batch_size=100,
-            valid_batch_size=100, clip = 50.0, teacher_forcing_ratio = 0.5, show_attention_every=5):
+            valid_batch_size=100, clip = 50.0, teacher_forcing_ratio = 0.5, show_attention_every=5, device='cpu'):
         self.learning_rate=learning_rate
         self.decoder_learning_ratio=decoder_learning_ratio
         self.train_batch_size=train_batch_size
@@ -85,7 +85,7 @@ class Seq2seqLearner(nn.Module):
 
         self.encoder_optimizer = optim.Adam(self.encoder.parameters(), lr=self.learning_rate)
         self.decoder_optimizer = optim.Adam(self.decoder.parameters(), lr=self.learning_rate * self.decoder_learning_ratio)
-        self.loss_func = masked_cross_entropy()
+        self.loss_func = masked_cross_entropy
 
         train_dataloader, valid_dataloader = self.data_manager.get_dataloaders(train_batch_size=self.train_batch_size,
                                                                           valid_batch_size=self.valid_batch_size)
@@ -100,7 +100,7 @@ class Seq2seqLearner(nn.Module):
             start = time.time()
             loss_total_train = 0
             nbatches_train = 0
-            train_batch_size = self.batch_size
+            #train_batch_size = self.batch_size
             for input_batches, input_lengths, target_batches, target_lengths in train_dataloader:
                 self.encoder_optimizer.zero_grad()
                 self.decoder_optimizer.zero_grad()
@@ -136,8 +136,7 @@ class Seq2seqLearner(nn.Module):
                 val_all_decoder_outputs, decoder_attentions, decoded_words = self.forward(val_input_batches,
                                                                                           val_input_lengths,
                                                                                           val_target_batches,
-                                                                                          val_target_lengths,
-                                                                                          self.max_len)
+                                                                                          val_target_lengths, device, True)
                 with torch.no_grad():
                     loss_valid = self.loss_func(
                         val_all_decoder_outputs.transpose(0, 1).contiguous(),  # -> batch x seq
@@ -166,6 +165,7 @@ class Seq2seqLearner(nn.Module):
             f'loss train: {round(loss_train, 3)} loss valid: {round(loss_valid, 3)}'
         print(summary)
 
+
     def show_attention(self, input_sentence, output_words, attentions):
         df_attentions = pd.DataFrame(attentions.numpy())
         df_attentions.index = output_words
@@ -178,5 +178,36 @@ class Seq2seqLearner(nn.Module):
         ax.set_ylabel('output')
         plt.show()
         plt.close()
+
+
+    def predict(self, text, device='cpu'):
+        self.encoder.train(False)
+        self.decoder.train(False)
+        text = normalize_string(text)
+        input_toks_id = self.data_manager.train_seq2seq.seq_x.numericalize(text)
+        input_batch, input_length = to_padded_tensor([input_toks_id], device=device)
+
+        encoder_outputs, encoder_hidden = self.encoder(input_batch, input_length, None)
+        decoder_input = torch.tensor([TOK_XX.BOS_id], device=device)  # SOS
+        decoder_hidden = encoder_hidden[:self.decoder.n_layers]
+
+        decoded_toks_id = []
+        for di in range(self.max_len):
+            decoder_output, decoder_hidden, decoder_attention = self.decoder(
+                decoder_input, decoder_hidden, encoder_outputs)
+            # Choose top word from output
+            topv, topi = decoder_output.data.topk(1)
+            ni = topi[0][0]
+            if ni.item() == TOK_XX.EOS_id:
+                decoded_toks_id.append(ni.item())
+                break
+            else:
+                decoded_toks_id.append(ni.item())
+
+            decoder_input = torch.tensor([ni], device=device)
+        # turn them into words
+        text = self.data_manager.train_seq2seq.seq_y.textify(decoded_toks_id)
+        return text
+
 
 
