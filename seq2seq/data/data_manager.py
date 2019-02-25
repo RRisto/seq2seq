@@ -170,11 +170,9 @@ class Seq2SeqDataset(Dataset):
                                    add_EOS=False)
         else:
             seq_x = SeqData.create(seq_x.texts, seq_x.max_vocab, seq_x.min_freq, seq_x.TOK_XX, seq_x.tokenizer,
-                                   train_seq2seq_xvocab,
-                                   add_EOS=False)
+                                   train_seq2seq_xvocab, add_EOS=False)
             seq_y = SeqData.create(seq_y.texts, seq_y.max_vocab, seq_y.min_freq, seq_y.TOK_XX, seq_y.tokenizer,
-                                   train_seq2seq_yvocab,
-                                   add_EOS=False)
+                                   train_seq2seq_yvocab, add_EOS=False)
         return cls(seq_x, seq_y, min_ntoks, max_ntoks)
 
 
@@ -214,15 +212,19 @@ class Seq2SeqDataManager():
         self.itos_x=self.train_seq2seq.seq_x.vocab.itos
         self.itos_y=self.train_seq2seq.seq_y.vocab.itos
 
-    def collate_fn(self, data):
-        return collate_fn(data, self.device)
+    def _collate_fn(self, data):
+        data.sort(key=lambda x: len(x[0]), reverse=True)
+        input_seq, target_seq = zip(*data)
+        input_tens, input_lens = to_padded_tensor(input_seq, device=self.device)
+        target_tens, target_lens = to_padded_tensor(target_seq, device=self.device)
+        return input_tens, input_lens, target_tens, target_lens
 
     def get_dataloaders(self, train_batch_size=10, valid_batch_size=1):
         self.train_batch_size = train_batch_size
         self.valid_batch_size = valid_batch_size
 
-        train_dataloader = DataLoader(self.train_seq2seq, batch_size=self.train_batch_size, collate_fn=self.collate_fn)
-        valid_dataloader = DataLoader(self.valid_seq2seq, batch_size=self.valid_batch_size, collate_fn=self.collate_fn)
+        train_dataloader = DataLoader(self.train_seq2seq, batch_size=self.train_batch_size, collate_fn=self._collate_fn)
+        valid_dataloader = DataLoader(self.valid_seq2seq, batch_size=self.valid_batch_size, collate_fn=self._collate_fn)
         return train_dataloader, valid_dataloader
 
     @classmethod
