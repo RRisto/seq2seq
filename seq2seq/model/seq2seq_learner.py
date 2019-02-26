@@ -16,7 +16,8 @@ from seq2seq.utils.masked_cross_entropy import masked_cross_entropy
 
 
 class Seq2seqLearner(nn.Module):
-    def __init__(self, data_manager, hidden_size, n_layers=2, dropout= 0.1, emb_vecs_x=None, emb_vecs_y=None, attn_model= 'dot'):
+    def __init__(self, data_manager, hidden_size, n_layers=2, dropout= 0.1, emb_vecs_x=None, emb_vecs_y=None,
+                 attn_model= 'dot'):
         super(Seq2seqLearner, self).__init__()
         self.hidden_size=hidden_size
         self.n_layers=n_layers
@@ -27,7 +28,8 @@ class Seq2seqLearner(nn.Module):
         self.attn_model=attn_model
 
         self.encoder=EncoderRNN(self.data_manager.itos_x, self.hidden_size, self.n_layers, self.dropout, emb_vecs_x)
-        self.decoder= LuongAttnDecoderRNN(self.attn_model, self.data_manager.itos_y, self.hidden_size, self.n_layers, self.dropout, emb_vecs_y)
+        self.decoder= LuongAttnDecoderRNN(self.attn_model, self.data_manager.itos_y, self.hidden_size, self.n_layers,
+                                          self.dropout, emb_vecs_y)
 
 
     def forward(self, input_batches, input_lengths, target_batches, target_lengths, return_attention=False, device='cpu'):
@@ -140,7 +142,8 @@ class Seq2seqLearner(nn.Module):
                 val_all_decoder_outputs, decoder_attentions, decoded_words = self.forward(val_input_batches,
                                                                                           val_input_lengths,
                                                                                           val_target_batches,
-                                                                                          val_target_lengths, True, device)
+                                                                                          val_target_lengths,
+                                                                                          True, device)
                 with torch.no_grad():
                     loss_valid = self.loss_func(
                         val_all_decoder_outputs.transpose(0, 1).contiguous(),  # -> batch x seq
@@ -180,6 +183,7 @@ class Seq2seqLearner(nn.Module):
         ax.xaxis.set_label_position('top')
         ax.set_xlabel('input')
         ax.set_ylabel('output')
+        plt.yticks(rotation=0)
         plt.show()
         plt.close()
 
