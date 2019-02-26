@@ -30,7 +30,7 @@ class Seq2seqLearner(nn.Module):
         self.decoder= LuongAttnDecoderRNN(self.attn_model, self.data_manager.itos_y, self.hidden_size, self.n_layers, self.dropout, emb_vecs_y)
 
 
-    def forward(self, input_batches, input_lengths, target_batches, target_lengths, device='cpu', return_attention=False):
+    def forward(self, input_batches, input_lengths, target_batches, target_lengths, return_attention=False, device='cpu'):
 
         encoder_outputs, encoder_hidden = self.encoder(input_batches, input_lengths, None)
         # Prepare input and output variables
@@ -87,8 +87,12 @@ class Seq2seqLearner(nn.Module):
         self.decoder_optimizer = optim.Adam(self.decoder.parameters(), lr=self.learning_rate * self.decoder_learning_ratio)
         self.loss_func = masked_cross_entropy
 
+        self.encoder.to(device)
+        self.decoder.to(device)
+
         train_dataloader, valid_dataloader = self.data_manager.get_dataloaders(train_batch_size=self.train_batch_size,
-                                                                          valid_batch_size=self.valid_batch_size)
+                                                                               valid_batch_size=self.valid_batch_size,
+                                                                               device=device)
 
         eca = 0
         dca = 0
@@ -106,7 +110,7 @@ class Seq2seqLearner(nn.Module):
                 self.decoder_optimizer.zero_grad()
 
                 all_decoder_outputs = self.forward(
-                    input_batches, input_lengths, target_batches, target_lengths, device)
+                    input_batches, input_lengths, target_batches, target_lengths, device=device)
 
                 loss = self.loss_func(
                     all_decoder_outputs.transpose(0, 1).contiguous(),  # -> batch x seq
@@ -136,7 +140,7 @@ class Seq2seqLearner(nn.Module):
                 val_all_decoder_outputs, decoder_attentions, decoded_words = self.forward(val_input_batches,
                                                                                           val_input_lengths,
                                                                                           val_target_batches,
-                                                                                          val_target_lengths, device, True)
+                                                                                          val_target_lengths, True, device)
                 with torch.no_grad():
                     loss_valid = self.loss_func(
                         val_all_decoder_outputs.transpose(0, 1).contiguous(),  # -> batch x seq
@@ -146,27 +150,27 @@ class Seq2seqLearner(nn.Module):
                 loss_total_valid += loss_valid
 
             valid_loss_avg = loss_total_valid / nbatches_valid
-            self.print_summary(start, epoch, n_epochs, train_loss_avg.item(), valid_loss_avg.item())
+            self._print_summary(start, epoch, n_epochs, train_loss_avg.item(), valid_loss_avg.item())
 
             if epoch % show_attention_every == 0:
-                self.show_attention(self.data_manager.valid_seq2seq.seq_x.vocab.textify(val_input_batches.t()[0]),
-                               decoded_words[0], decoder_attentions)
+                self._show_attention(self.data_manager.valid_seq2seq.seq_x.vocab.textify(val_input_batches.t()[0]),
+                                     decoded_words[0], decoder_attentions)
 
-    def time_since(self, start, end):
+    def _time_since(self, start, end):
         hours, rem = divmod(end - start, 3600)
         minutes, seconds = divmod(rem, 60)
         return hours, minutes, seconds
 
-    def print_summary(self, start, epoch, epochs, loss_train, loss_valid):
+    def _print_summary(self, start, epoch, epochs, loss_train, loss_valid):
         end = time.time()
-        hours, minutes, seconds = self.time_since(start, end)
+        hours, minutes, seconds = self._time_since(start, end)
         summary = f'{round(hours)}:{round(minutes)}:{round(seconds, 2)} ({epoch + 1} ' \
             f'{round((epoch + 1) / epochs * 100, 2)}%) ' \
             f'loss train: {round(loss_train, 3)} loss valid: {round(loss_valid, 3)}'
         print(summary)
 
 
-    def show_attention(self, input_sentence, output_words, attentions):
+    def _show_attention(self, input_sentence, output_words, attentions):
         df_attentions = pd.DataFrame(attentions.numpy())
         df_attentions.index = output_words
         df_attentions.columns = input_sentence.split(' ')

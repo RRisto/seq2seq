@@ -219,9 +219,10 @@ class Seq2SeqDataManager():
         target_tens, target_lens = to_padded_tensor(target_seq, device=self.device)
         return input_tens, input_lens, target_tens, target_lens
 
-    def get_dataloaders(self, train_batch_size=10, valid_batch_size=1):
+    def get_dataloaders(self, train_batch_size=10, valid_batch_size=1, device='cpu'):
         self.train_batch_size = train_batch_size
         self.valid_batch_size = valid_batch_size
+        self.device = device
 
         train_dataloader = DataLoader(self.train_seq2seq, batch_size=self.train_batch_size, collate_fn=self._collate_fn)
         valid_dataloader = DataLoader(self.valid_seq2seq, batch_size=self.valid_batch_size, collate_fn=self._collate_fn)
