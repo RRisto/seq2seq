@@ -4,7 +4,7 @@ from seq2seq.utils.masked_cross_entropy import *
 
 
 class Attn(nn.Module):
-    def __init__(self, method, hidden_size):
+    def __init__(self, method:str, hidden_size:int):
         super(Attn, self).__init__()
 
         self.method = method
@@ -17,7 +17,7 @@ class Attn(nn.Module):
             self.attn = nn.Linear(self.hidden_size * 2, hidden_size)
             self.v = nn.Parameter(torch.tensor(1, hidden_size, dtype=torch.float))
 
-    def forward(self, hidden, encoder_outputs):
+    def forward(self, hidden:torch.tensor, encoder_outputs:torch.tensor):
         max_len = encoder_outputs.size(0)
         this_batch_size = encoder_outputs.size(1)
         # Create variable to store attention energies
@@ -31,7 +31,7 @@ class Attn(nn.Module):
         # Normalize energies to weights in range 0 to 1, resize to 1 x B x S
         return F.softmax(attn_energies, dim=-1).unsqueeze(1)
 
-    def score(self, hidden, encoder_output):
+    def score(self, hidden:torch.tensor, encoder_output:torch.tensor):
 
         if self.method == 'dot':
             energy = torch.squeeze(hidden).dot(torch.squeeze(encoder_output))

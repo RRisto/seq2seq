@@ -2,7 +2,7 @@ import torch
 from torch.nn import functional
 
 
-def sequence_mask(sequence_length, max_len=None):
+def sequence_mask(sequence_length:torch.tensor, max_len:int=None):
     if max_len is None:
         max_len = sequence_length.data.max()
     batch_size = sequence_length.size(0)
@@ -15,16 +15,16 @@ def sequence_mask(sequence_length, max_len=None):
     return seq_range_expand < seq_length_expand
 
 
-def masked_cross_entropy(logits, target, length):
+def masked_cross_entropy(logits:torch.tensor, target:torch.tensor, length:torch.tensor):
     """
     Args:
-        logits: A Variable containing a FloatTensor of size
+        logits: A tensor containing a FloatTensor of size
             (batch, max_len, num_classes) which contains the
             unnormalized probability for each class.
-        target: A Variable containing a LongTensor of size
+        target: A tensor containing a LongTensor of size
             (batch, max_len) which contains the index of the true
             class for each corresponding step.
-        length: A Variable containing a LongTensor of size (batch,)
+        length: A tensor containing a LongTensor of size (batch,)
             which contains the length of each data in a batch.
 
     Returns:

@@ -62,7 +62,7 @@ class BahdanauAttnDecoderRNN(nn.Module):
 
 
 class LuongAttnDecoderRNN(nn.Module):
-    def __init__(self, attn_model, itos, hidden_size, n_layers=1, dropout=0.1, emb_vecs=None):
+    def __init__(self, attn_model:str, itos:list, hidden_size:int, n_layers:int=1, dropout:float=0.1, emb_vecs:dict=None):
         super(LuongAttnDecoderRNN, self).__init__()
 
         # Keep for reference
@@ -83,7 +83,7 @@ class LuongAttnDecoderRNN(nn.Module):
             self.attn = Attn(attn_model, self.hidden_size)
 
 
-    def forward(self, input_seq, last_hidden, encoder_outputs):
+    def forward(self, input_seq:torch.tensor, last_hidden:torch.tensor, encoder_outputs:torch.tensor):
         # Note: we run this one step at a time
 
         # Get the embedding of the current input word (last output word)
@@ -113,7 +113,7 @@ class LuongAttnDecoderRNN(nn.Module):
         return output, hidden, attn_weights
 
 
-    def _init_embedding(self, itos, em_sz, emb_vecs=None):
+    def _init_embedding(self, itos:list, em_sz:int, emb_vecs:dict=None):
         emb = nn.Embedding(len(itos), em_sz, padding_idx=1)
         if emb_vecs is not None:
             wgts = emb.weight.data

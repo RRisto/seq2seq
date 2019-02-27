@@ -1,4 +1,6 @@
 import os, re, unicodedata, spacy
+from pathlib import Path
+
 from spacy.symbols import ORTH
 from concurrent.futures import ThreadPoolExecutor
 
@@ -17,7 +19,7 @@ class TOK_XX:
     BOS_id = TOK_XX_ids[BOS]
     EOS_id = TOK_XX_ids[EOS]
 
-
+#todo check if all funcs needed
 def partition(a, sz):
     """splits iterables a in equal parts of size sz"""
     return [a[i:i + sz] for i in range(0, len(a), sz)]
@@ -35,19 +37,19 @@ def num_cpus():
 
 
 class Tokenizer():
-    def __init__(self, lang='en'):
+    def __init__(self, lang:str='en'):
         self.re_br = re.compile(r'<\s*br\s*/?>', re.IGNORECASE)
         self.tok = spacy.load(lang)
         for w in ('<bos>', '<eos>', '<unk>'):
             self.tok.tokenizer.add_special_case(w, [{ORTH: w}])
 
-    def sub_br(self, x):
+    def sub_br(self, x:str):
         return self.re_br.sub("\n", x)
 
     # def spacy_tok(self,x):
     #   return [t.text for t in self.tok.tokenizer(self.sub_br(x))]
 
-    def spacy_tok(self, x):
+    def spacy_tok(self, x:str):
         # spacy tokenizer
         # return [t.text for t in self.tok.tokenizer(self.sub_br(x))]
         # simple split
@@ -69,7 +71,7 @@ class Tokenizer():
         return f' {TK_WREP} {len(cc.split()) + 1} {c} '
 
     @staticmethod
-    def do_caps(ss):
+    def do_caps(ss:str):
         TOK_UP, TOK_SENT, TOK_MIX = ' t_up ', ' t_st ', ' t_mx '
         res = []
         prev = '.'
@@ -82,7 +84,7 @@ class Tokenizer():
         #         if re_nonsp.search(s): prev = s
         return ''.join(res)
 
-    def proc_text(self, s):
+    def proc_text(self, s:str):
         s = self.re_rep.sub(Tokenizer.replace_rep, s)
         s = self.re_word_rep.sub(Tokenizer.replace_wrep, s)
         s = Tokenizer.do_caps(s)
@@ -91,12 +93,12 @@ class Tokenizer():
         return self.spacy_tok(s)
 
     @staticmethod
-    def proc_all(ss, lang):
+    def proc_all(ss:list, lang:str):
         tok = Tokenizer(lang)
         return [tok.proc_text(s) for s in ss]
 
     @staticmethod
-    def proc_all_mp(ss, lang='en', ncpus=None):
+    def proc_all_mp(ss:list, lang:str='en', ncpus:int=None):
         ncpus = ncpus or num_cpus() // 2
         if ncpus == 0:
             ncpus = 1
@@ -105,13 +107,13 @@ class Tokenizer():
             return sum(e.map(Tokenizer.proc_all, ss, [lang] * len(ss)), [])
 
 
-def unicode_to_ascii(s):
+def unicode_to_ascii(s:str):
     return ''.join(
         c for c in unicodedata.normalize('NFD', s)
         if unicodedata.category(c) != 'Mn' )
 
 
-def normalize_string(s):
+def normalize_string(s:str):
     """ Lowercase, trim, and remove non-letter characters"""
     s = unicode_to_ascii(s.lower().strip())
     s = re.sub(r"([,.!?])", r" \1 ", s)
@@ -120,7 +122,7 @@ def normalize_string(s):
     return s
 
 
-def read_pairs_txt(filename):
+def read_pairs_txt(filename:Path):
     lines = open(filename).read().strip().split('\n')
     # Split every line into pairs and normalize
     pairs = [[normalize_string(s) for s in l.split('\t')] for l in lines]

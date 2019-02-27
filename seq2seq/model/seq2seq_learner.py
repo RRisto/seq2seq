@@ -1,6 +1,4 @@
-import time
-
-import torch
+import torch, time
 import torch.nn as nn
 from torch import optim
 import pandas as pd
@@ -8,7 +6,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 
-from seq2seq.data.data_manager import to_padded_tensor
+from seq2seq.data.data_manager import to_padded_tensor, Seq2SeqDataManager
 from seq2seq.data.tokenizer import TOK_XX, normalize_string
 from seq2seq.model.decoder import LuongAttnDecoderRNN
 from seq2seq.model.encoder import EncoderRNN
@@ -16,15 +14,17 @@ from seq2seq.utils.masked_cross_entropy import masked_cross_entropy
 
 
 class Seq2seqLearner(nn.Module):
-    def __init__(self, data_manager, hidden_size, n_layers=2, dropout= 0.1, emb_vecs_x=None, emb_vecs_y=None,
-                 attn_model= 'dot'):
+    def __init__(self, data_manager:Seq2SeqDataManager, hidden_size:int, n_layers:int=2, dropout:float= 0.1,
+                 emb_vecs_x:dict=None, emb_vecs_y:dict=None, attn_model:str= 'dot'):
+        """
+        initilizes learner object, if embeddings are added uses embeddings. It is important thet embeddings size and
+        hidden size match!
+        """
         super(Seq2seqLearner, self).__init__()
         self.hidden_size=hidden_size
         self.n_layers=n_layers
         self.dropout=dropout
         self.data_manager=data_manager
-        #self.emb_vecs_x=emb_vecs_x
-        #self.emb_vecs_y=emb_vecs_y
         self.attn_model=attn_model
 
         self.encoder=EncoderRNN(self.data_manager.itos_x, self.hidden_size, self.n_layers, self.dropout, emb_vecs_x)
@@ -32,7 +32,8 @@ class Seq2seqLearner(nn.Module):
                                           self.dropout, emb_vecs_y)
 
 
-    def forward(self, input_batches, input_lengths, target_batches, target_lengths, return_attention=False, device='cpu'):
+    def forward(self, input_batches:torch.tensor, input_lengths:torch.tensor, target_batches:torch.tensor,
+                target_lengths:torch.tensor, return_attention:bool=False, device:str='cpu'):
 
         encoder_outputs, encoder_hidden = self.encoder(input_batches, input_lengths, None)
         # Prepare input and output variables
@@ -75,8 +76,9 @@ class Seq2seqLearner(nn.Module):
 
         return all_decoder_outputs
 
-    def fit(self, n_epochs, learning_rate = 0.001, decoder_learning_ratio = 5.0, train_batch_size=100,
-            valid_batch_size=100, clip = 50.0, teacher_forcing_ratio = 0.5, show_attention_every=5, device='cpu'):
+    def fit(self, n_epochs:int, learning_rate:float = 0.001, decoder_learning_ratio:float = 5.0, train_batch_size:int=100,
+            valid_batch_size:int=100, clip:float = 50.0, teacher_forcing_ratio:float = 0.5, show_attention_every:int=5,
+            device:str='cpu'):
         self.learning_rate=learning_rate
         self.decoder_learning_ratio=decoder_learning_ratio
         self.train_batch_size=train_batch_size
@@ -106,7 +108,6 @@ class Seq2seqLearner(nn.Module):
             start = time.time()
             loss_total_train = 0
             nbatches_train = 0
-            #train_batch_size = self.batch_size
             for input_batches, input_lengths, target_batches, target_lengths in train_dataloader:
                 self.encoder_optimizer.zero_grad()
                 self.decoder_optimizer.zero_grad()
@@ -159,12 +160,12 @@ class Seq2seqLearner(nn.Module):
                 self._show_attention(self.data_manager.valid_seq2seq.seq_x.vocab.textify(val_input_batches.t()[0]),
                                      decoded_words[0], decoder_attentions)
 
-    def _time_since(self, start, end):
+    def _time_since(self, start:time.time, end:time.time):
         hours, rem = divmod(end - start, 3600)
         minutes, seconds = divmod(rem, 60)
         return hours, minutes, seconds
 
-    def _print_summary(self, start, epoch, epochs, loss_train, loss_valid):
+    def _print_summary(self, start:time.time, epoch:int, epochs:int, loss_train:float, loss_valid:float):
         end = time.time()
         hours, minutes, seconds = self._time_since(start, end)
         summary = f'{round(hours)}:{round(minutes)}:{round(seconds, 2)} ({epoch + 1} ' \
@@ -173,7 +174,7 @@ class Seq2seqLearner(nn.Module):
         print(summary)
 
 
-    def _show_attention(self, input_sentence, output_words, attentions):
+    def _show_attention(self, input_sentence:str, output_words:list, attentions:torch.tensor):
         df_attentions = pd.DataFrame(attentions.numpy())
         df_attentions.index = output_words
         df_attentions.columns = input_sentence.split(' ')
@@ -188,7 +189,7 @@ class Seq2seqLearner(nn.Module):
         plt.close()
 
 
-    def predict(self, text, device='cpu'):
+    def predict(self, text:str, device:str='cpu'):
         self.encoder.train(False)
         self.decoder.train(False)
         text = normalize_string(text)
