@@ -20,6 +20,8 @@ class Seq2seqLearner(nn.Module):
         """
         initilizes learner object, if embeddings are added uses embeddings. It is important thet embeddings size and
         hidden size match!
+        Wordvecotrs could come from direct intput (dict) or from datamanager (which loads vecotrs only needed for
+         current vocabulary
         """
         super(Seq2seqLearner, self).__init__()
         self.hidden_size=hidden_size
@@ -27,6 +29,8 @@ class Seq2seqLearner(nn.Module):
         self.dropout=dropout
         self.data_manager=data_manager
         self.attn_model=attn_model
+        emb_vecs_x=data_manager.vectors_x if emb_vecs_x is None else emb_vecs_x
+        emb_vecs_y=data_manager.vectors_y if emb_vecs_y is None else emb_vecs_y
 
         self.encoder=EncoderRNN(self.data_manager.itos_x, self.hidden_size, self.n_layers, self.dropout, emb_vecs_x)
         self.decoder= LuongAttnDecoderRNN(self.attn_model, self.data_manager.itos_y, self.hidden_size, self.n_layers,
@@ -72,13 +76,14 @@ class Seq2seqLearner(nn.Module):
                 decoder_input = topi.squeeze().clone().detach()
 
         if return_attention:
-            all_decoder_outputs=all_decoder_outputs, decoder_attentions[0, :t + 1, :len(encoder_outputs)], decoded_words
+                all_decoder_outputs=all_decoder_outputs, decoder_attentions[:, :t + 1, :len(encoder_outputs)], decoded_words
 
         return all_decoder_outputs
 
     def fit(self, n_epochs:int, learning_rate:float = 0.001, decoder_learning_ratio:float = 5.0, train_batch_size:int=100,
             valid_batch_size:int=100, clip:float = 50.0, teacher_forcing_ratio:float = 0.5, show_attention_every:int=5,
-            device:str='cpu'):
+            device:str='cpu', show_attention_idxs:list=[0,1]):
+        """show_attention_idxs contains list of idx from validation batch which attentions are shown"""
         self.learning_rate=learning_rate
         self.decoder_learning_ratio=decoder_learning_ratio
         self.train_batch_size=train_batch_size
@@ -86,6 +91,8 @@ class Seq2seqLearner(nn.Module):
         self.clip=clip
         self.teacher_forcing_ratio=teacher_forcing_ratio
         self.max_len=self.data_manager.max_ntoks
+        self.show_attention_idxs=show_attention_idxs
+        self.show_attention_every=show_attention_every
 
         self.encoder_optimizer = optim.Adam(self.encoder.parameters(), lr=self.learning_rate)
         self.decoder_optimizer = optim.Adam(self.decoder.parameters(), lr=self.learning_rate * self.decoder_learning_ratio)
@@ -156,9 +163,9 @@ class Seq2seqLearner(nn.Module):
             valid_loss_avg = loss_total_valid / nbatches_valid
             self._print_summary(start, epoch, n_epochs, train_loss_avg.item(), valid_loss_avg.item())
 
-            if epoch % show_attention_every == 0:
-                self._show_attention(self.data_manager.valid_seq2seq.seq_x.vocab.textify(val_input_batches.t()[0]),
-                                     decoded_words[0], decoder_attentions)
+            if epoch % show_attention_every == 0 and show_attention_idxs is not None:
+                self._show_attention(val_input_batches, decoded_words, decoder_attentions, val_target_batches,
+                                     show_attention_idxs)
 
     def _time_since(self, start:time.time, end:time.time):
         hours, rem = divmod(end - start, 3600)
@@ -174,19 +181,29 @@ class Seq2seqLearner(nn.Module):
         print(summary)
 
 
-    def _show_attention(self, input_sentence:str, output_words:list, attentions:torch.tensor):
-        df_attentions = pd.DataFrame(attentions.numpy())
-        df_attentions.index = output_words
-        df_attentions.columns = input_sentence.split(' ')
+    def _show_attention(self, val_input_batches:torch.tensor, outputs_words:list, decoder_attentions:torch.tensor,
+                        val_target_batches:torch.tensor, show_attention_idxs:list=[0,1]):
 
-        ax = sns.heatmap(df_attentions, cmap='Blues', robust=True, cbar=False, cbar_kws={"orientation": "horizontal"})
-        ax.xaxis.tick_top()  # x axis on top
-        ax.xaxis.set_label_position('top')
-        ax.set_xlabel('input')
-        ax.set_ylabel('output')
-        plt.yticks(rotation=0)
-        plt.show()
-        plt.close()
+        for idx in show_attention_idxs:
+            input_sentence=self.data_manager.textify(val_input_batches.t()[idx],False, False)
+            output_words=outputs_words[idx]
+            decoder_attention=decoder_attentions[idx, :,:]
+            target_sentence=self.data_manager.textify(val_target_batches.t()[idx],False, True)
+
+            df_attentions = pd.DataFrame(decoder_attention.numpy())
+            df_attentions.index = output_words
+            df_attentions.columns = input_sentence.split(' ')
+
+            ax = sns.heatmap(df_attentions, cmap='Blues', robust=True, cbar=False, cbar_kws={"orientation": "horizontal"})
+            ax.xaxis.tick_top()  # x axis on top
+            ax.xaxis.set_label_position('top')
+            ax.set_xlabel('input')
+            ax.set_ylabel('output')
+            plt.yticks(rotation=0)
+            plt.title(f'Input: {input_sentence} \n target: {target_sentence}')
+            plt.tight_layout()
+            plt.show()
+            plt.close()
 
 
     def predict(self, text:str, device:str='cpu'):

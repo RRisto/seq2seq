@@ -3,7 +3,7 @@ import numpy as np
 import pandas as pd
 from torch.utils.data import Dataset, DataLoader
 from seq2seq.data.tokenizer import Tokenizer, TOK_XX
-from seq2seq.data.utils import normalize_string
+from seq2seq.data.utils import normalize_string, load_ft_vectors
 
 
 class Vocab():
@@ -163,17 +163,10 @@ class Seq2SeqDataset(Dataset):
         seq_x.remove(idxs_to_keep=idxs_to_keep, valid=valid, train_vocab=train_seq2seq_xvocab)
         seq_y.remove(idxs_to_keep=idxs_to_keep, valid=valid, train_vocab=train_seq2seq_yvocab)
 
-        if not valid:
-            # initialixze sequences again because some tokens might be removed completely
-            seq_x = SeqData.create(seq_x.texts, seq_x.tokenizer, seq_x.max_vocab, seq_x.min_freq, seq_x.TOK_XX,
-                                   add_EOS=False)
-            seq_y = SeqData.create(seq_y.texts, seq_y.tokenizer, seq_y.max_vocab, seq_y.min_freq, seq_y.TOK_XX,
-                                   add_EOS=False)
-        else:
-            seq_x = SeqData.create(seq_x.texts, seq_x.tokenizer, seq_x.max_vocab, seq_x.min_freq, seq_x.TOK_XX,
-                                   train_seq2seq_xvocab, add_EOS=False)
-            seq_y = SeqData.create(seq_y.texts, seq_y.tokenizer, seq_y.max_vocab, seq_y.min_freq, seq_y.TOK_XX,
-                                   train_seq2seq_yvocab, add_EOS=False)
+        seq_x = SeqData.create(seq_x.texts, seq_x.tokenizer, seq_x.max_vocab, seq_x.min_freq, seq_x.TOK_XX,
+                               train_seq2seq_xvocab, add_EOS=False)
+        seq_y = SeqData.create(seq_y.texts, seq_y.tokenizer, seq_y.max_vocab, seq_y.min_freq, seq_y.TOK_XX,
+                               train_seq2seq_yvocab, add_EOS=False)
         return cls(seq_x, seq_y, min_ntoks, max_ntoks)
 
 
@@ -187,6 +180,8 @@ class Seq2SeqDataManager():
         self.max_ntoks=max_ntoks
         self.itos_x=self.train_seq2seq.seq_x.vocab.itos
         self.itos_y=self.train_seq2seq.seq_y.vocab.itos
+        self.vectors_x={}
+        self.vectors_y={}
 
     @staticmethod
     def _to_padded_tensor(sequences:tuple, pad_end:bool=True, pad_idx:int=TOK_XX.PAD_id, transpose:bool=True,
@@ -223,6 +218,12 @@ class Seq2SeqDataManager():
     def textify(self, tok_ids:list, train:bool=True, y:bool=True, sep:str=' '):
         seq=self.train_seq2seq if train else self.valid_seq2seq
         return seq.textify(tok_ids, y, sep)
+
+    def load_ft_vectors(self, filename_x:str=None, filename_y:str=None):
+        if filename_x is not None:
+            self.vectors_x=load_ft_vectors(filename_x, self.itos_x)
+        if filename_y is not None:
+            self.vectors_y=load_ft_vectors(filename_y, self.itos_y)
 
     @classmethod
     def create(cls, train_x: pd.Series, train_y:pd.Series, valid_x:pd.Series, valid_y:pd.Series, lang_x:str, lang_y:str,
