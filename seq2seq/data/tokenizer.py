@@ -101,8 +101,9 @@ def unicode_to_ascii(string:str):
 
 
 def normalize_string(string:str):
-    """ Lowercase, trim, and remove non-letter characters"""
-    string = unicode_to_ascii(string.lower().strip())
+    """ trim, and remove non-letter characters"""
+    #string = unicode_to_ascii(string.lower().strip())
+    string = unicode_to_ascii(string.strip())
     string = re.sub(r"([,.!?])", r" \1 ", string)
     string = re.sub(r"[^a-zA-Z,.!?]+", r" ", string)
     string = re.sub(r"\s+", r" ", string).strip()
