@@ -79,15 +79,12 @@ class Tokenizer:
         string = self.re_rep.sub(Tokenizer.replace_rep, string)
         string = self.re_word_rep.sub(Tokenizer.replace_wrep, string)
         string = self.do_caps(string)
-        #string = Tokenizer.do_caps(string)
         string = re.sub(r'([/#])', r' \1 ', string)
         string = re.sub(' {2,}', ' ', string)
         return self.spacy_tok(string)
 
     def proc_all(self, strings:list):
-        #tok = Tokenizer(self.lang)
         return [self.proc_text(s) for s in strings]
-        #return [tok.proc_text(s) for s in strings]
 
     def proc_all_mp(self, strings:list, ncpus:int=None):
         ncpus = ncpus or num_cpus() // 2
@@ -95,7 +92,6 @@ class Tokenizer:
             ncpus = 1
         with ThreadPoolExecutor(ncpus) as e:
             return sum(e.map(self.proc_all, strings), [])
-            #return sum(e.map(Tokenizer.proc_all, strings, [self.lang] * len(strings)), [])
 
 
 def unicode_to_ascii(string:str):

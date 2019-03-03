@@ -13,9 +13,9 @@ class Vocab():
         self.itos = itos
         self.stoi = collections.defaultdict(int, {v: k for k, v in enumerate(self.itos)})
 
-    def numericalize(self, t:list):
-        "Convert a list of tokens `t` to their ids."
-        return [self.stoi[w] for w in t]
+    def numericalize(self, tokens:list):
+        "Convert a list of tokens  to their ids."
+        return [self.stoi[w] for w in tokens]
 
     def textify(self, nums:np.ndarray, sep:str=' '):
         "Convert a list of `nums` to their tokens."
