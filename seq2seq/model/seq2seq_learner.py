@@ -84,6 +84,7 @@ class Seq2seqLearner(nn.Module):
             valid_batch_size:int=100, clip:float = 50.0, teacher_forcing_ratio:float = 0.5, show_attention_every:int=5,
             device:str='cpu', show_attention_idxs:list=[0,1]):
         """show_attention_idxs contains list of idx from validation batch which attentions are shown"""
+        self.n_epochs=n_epochs
         self.learning_rate=learning_rate
         self.decoder_learning_ratio=decoder_learning_ratio
         self.train_batch_size=train_batch_size
@@ -108,7 +109,7 @@ class Seq2seqLearner(nn.Module):
         eca = 0
         dca = 0
 
-        for epoch in range(n_epochs):
+        for epoch in range(self.n_epochs):
             self.encoder.train(True)
             self.decoder.train(True)
 
@@ -129,8 +130,8 @@ class Seq2seqLearner(nn.Module):
                 loss.backward()
 
                 # Clip gradient norms
-                ec = torch.nn.utils.clip_grad_norm_(self.encoder.parameters(), clip)
-                dc = torch.nn.utils.clip_grad_norm_(self.decoder.parameters(), clip)
+                ec = torch.nn.utils.clip_grad_norm_(self.encoder.parameters(), self.clip)
+                dc = torch.nn.utils.clip_grad_norm_(self.decoder.parameters(), self.clip)
                 # Update parameters with optimizers
                 self.encoder_optimizer.step()
                 self.decoder_optimizer.step()
