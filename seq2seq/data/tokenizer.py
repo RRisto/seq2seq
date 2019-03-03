@@ -36,24 +36,21 @@ def num_cpus():
         return os.cpu_count()
 
 
-class Tokenizer():
+class Tokenizer:
     def __init__(self, lang:str='en'):
         self.re_br = re.compile(r'<\s*br\s*/?>', re.IGNORECASE)
-        self.tok = spacy.load(lang)
-        for w in ('<bos>', '<eos>', '<unk>'):
+        self.lang = lang
+        self.tok = spacy.load(self.lang)
+        for w in TOK_XX.TOK_XX:
             self.tok.tokenizer.add_special_case(w, [{ORTH: w}])
 
     def sub_br(self, x:str):
         return self.re_br.sub("\n", x)
 
-    # def spacy_tok(self,x):
-    #   return [t.text for t in self.tok.tokenizer(self.sub_br(x))]
-
     def spacy_tok(self, x:str):
-        # spacy tokenizer
-        # return [t.text for t in self.tok.tokenizer(self.sub_br(x))]
+        return [t.text for t in self.tok.tokenizer(self.sub_br(x))]
         # simple split
-        return [t for t in (self.sub_br(x).split())]
+        #return [t for t in (self.sub_br(x).split())]
 
     re_rep = re.compile(r'(\S)(\1{3,})')
     re_word_rep = re.compile(r'(\b\w+\W+)(\1{3,})')
@@ -70,56 +67,50 @@ class Tokenizer():
         c, cc = m.groups()
         return f' {TK_WREP} {len(cc.split()) + 1} {c} '
 
-    @staticmethod
-    def do_caps(ss:str):
+    def do_caps(self, ss:str):
         TOK_UP, TOK_SENT, TOK_MIX = ' t_up ', ' t_st ', ' t_mx '
         res = []
-        prev = '.'
-        re_word = re.compile('\w')
-        re_nonsp = re.compile('\S')
         for s in re.findall(r'\w+|\W+', ss):
             res += ([TOK_UP, s.lower()] if (s.isupper() and (len(s) > 2))
-                    #                 else [TOK_SENT,s.lower()] if (s.istitle() and re_word.search(prev))
                     else [s.lower()])
-        #         if re_nonsp.search(s): prev = s
         return ''.join(res)
 
-    def proc_text(self, s:str):
-        s = self.re_rep.sub(Tokenizer.replace_rep, s)
-        s = self.re_word_rep.sub(Tokenizer.replace_wrep, s)
-        s = Tokenizer.do_caps(s)
-        s = re.sub(r'([/#])', r' \1 ', s)
-        s = re.sub(' {2,}', ' ', s)
-        return self.spacy_tok(s)
+    def proc_text(self, string:str):
+        string = self.re_rep.sub(Tokenizer.replace_rep, string)
+        string = self.re_word_rep.sub(Tokenizer.replace_wrep, string)
+        string = self.do_caps(string)
+        #string = Tokenizer.do_caps(string)
+        string = re.sub(r'([/#])', r' \1 ', string)
+        string = re.sub(' {2,}', ' ', string)
+        return self.spacy_tok(string)
 
-    @staticmethod
-    def proc_all(ss:list, lang:str):
-        tok = Tokenizer(lang)
-        return [tok.proc_text(s) for s in ss]
+    def proc_all(self, strings:list):
+        #tok = Tokenizer(self.lang)
+        return [self.proc_text(s) for s in strings]
+        #return [tok.proc_text(s) for s in strings]
 
-    @staticmethod
-    def proc_all_mp(ss:list, lang:str='en', ncpus:int=None):
+    def proc_all_mp(self, strings:list, ncpus:int=None):
         ncpus = ncpus or num_cpus() // 2
         if ncpus == 0:
             ncpus = 1
-        # with ProcessPoolExecutor(ncpus) as e:
         with ThreadPoolExecutor(ncpus) as e:
-            return sum(e.map(Tokenizer.proc_all, ss, [lang] * len(ss)), [])
+            return sum(e.map(self.proc_all, strings), [])
+            #return sum(e.map(Tokenizer.proc_all, strings, [self.lang] * len(strings)), [])
 
 
-def unicode_to_ascii(s:str):
+def unicode_to_ascii(string:str):
     return ''.join(
-        c for c in unicodedata.normalize('NFD', s)
+        c for c in unicodedata.normalize('NFD', string)
         if unicodedata.category(c) != 'Mn' )
 
 
-def normalize_string(s:str):
+def normalize_string(string:str):
     """ Lowercase, trim, and remove non-letter characters"""
-    s = unicode_to_ascii(s.lower().strip())
-    s = re.sub(r"([,.!?])", r" \1 ", s)
-    s = re.sub(r"[^a-zA-Z,.!?]+", r" ", s)
-    s = re.sub(r"\s+", r" ", s).strip()
-    return s
+    string = unicode_to_ascii(string.lower().strip())
+    string = re.sub(r"([,.!?])", r" \1 ", string)
+    string = re.sub(r"[^a-zA-Z,.!?]+", r" ", string)
+    string = re.sub(r"\s+", r" ", string).strip()
+    return string
 
 
 def read_pairs_txt(filename:Path):

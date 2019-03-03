@@ -6,7 +6,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 
-from seq2seq.data.data_manager import to_padded_tensor, Seq2SeqDataManager
+from seq2seq.data.data_manager import Seq2SeqDataManager
 from seq2seq.data.tokenizer import TOK_XX, normalize_string
 from seq2seq.model.decoder import LuongAttnDecoderRNN
 from seq2seq.model.encoder import EncoderRNN
@@ -66,8 +66,7 @@ class Seq2seqLearner(nn.Module):
                     if ni.item() == TOK_XX.EOS_id:
                         decoded_words[i].append(TOK_XX.EOS)
                     else:
-                        #todo make datamanager wrapper for this call
-                        decoded_words[i].append(self.data_manager.train_seq2seq.seq_y.vocab.itos[ni.item()])
+                        decoded_words[i].append(self.data_manager.textify([ni.item()]))
                 # Next input is chosen word
                 decoder_input = topi.squeeze().clone().detach()
 
@@ -194,7 +193,7 @@ class Seq2seqLearner(nn.Module):
         self.decoder.train(False)
         text = normalize_string(text)
         input_toks_id = self.data_manager.train_seq2seq.seq_x.numericalize(text)
-        input_batch, input_length = to_padded_tensor([input_toks_id], device=device)
+        input_batch, input_length = self.data_manager._to_padded_tensor([input_toks_id], device=device)
 
         encoder_outputs, encoder_hidden = self.encoder(input_batch, input_length, None)
         decoder_input = torch.tensor([TOK_XX.BOS_id], device=device)  # SOS

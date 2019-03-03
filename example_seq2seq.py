@@ -8,7 +8,7 @@ MIN_COUNT = 3
 
 ## Get data
 # data_manager=Seq2SeqDataManager.create_from_txt('data/eng-fra_sub.txt')
-data_manager = Seq2SeqDataManager.create_from_txt('data/eng-fra_sub.txt', min_freq=MIN_COUNT, min_ntoks=MIN_LENGTH,
+data_manager = Seq2SeqDataManager.create_from_txt('data/eng-fra_sub.txt','en', 'fr', min_freq=MIN_COUNT, min_ntoks=MIN_LENGTH,
                                                   max_ntoks=MAX_LENGTH, switch_pair=True, device=DEVICE)
 
 hidden_size=50

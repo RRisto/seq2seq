@@ -27,14 +27,6 @@ class Vocab():
         for id in ids_to_remove:
             del self.stoi[id]
 
-    #todo check if needed
-    def __getstate__(self):
-        return {'itos': self.itos}
-
-    def __setstate__(self, state: dict):
-        self.itos = state['itos']
-        self.stoi = collections.defaultdict(int, {v: k for k, v in enumerate(self.itos)})
-
     @classmethod
     def create(cls, tokens:list, max_vocab: int, min_freq: int, TOK_XX:TOK_XX=TOK_XX):
         "Create a vocabulary from a set of tokens."
@@ -63,7 +55,7 @@ class SeqData():
     """class for texts sequences, tokenizes and numericalizes them"""
 
     def __init__(self, texts:np.ndarray, toks:list, vocab:Vocab, toks_id:np.ndarray, max_vocab:int=60000,
-                 min_freq:int=1, TOK_XX:TOK_XX=TOK_XX, tokenizer:Tokenizer=Tokenizer):
+                 min_freq:int=1, TOK_XX:TOK_XX=TOK_XX, tokenizer:Tokenizer=Tokenizer(lang='en')):
         self.texts = texts
         self.max_vocab = max_vocab
         self.min_freq = min_freq
@@ -121,8 +113,8 @@ class SeqData():
             print('You must have max_len and min_len values set or idx_to_keep set')
 
     @classmethod
-    def create(cls, texts:np.ndarray, max_vocab:int=60000, min_freq:int=1, TOK_XX:TOK_XX=TOK_XX,
-               tokenizer:Tokenizer=Tokenizer, vocab:Vocab=None, add_EOS:bool=True):
+    def create(cls, texts:np.ndarray, tokenizer:Tokenizer, max_vocab:int=60000, min_freq:int=1, TOK_XX:TOK_XX=TOK_XX,
+               vocab:Vocab=None, add_EOS:bool=True):
         if add_EOS:
             texts = add_special_strings(texts, None, TOK_XX.EOS)
         toks = tokenizer.proc_all_mp([texts])
@@ -155,6 +147,10 @@ class Seq2SeqDataset(Dataset):
     def __len__(self):
         return len(self.x)
 
+    def textify(self, tok_ids,y=True,  sep:str=' '):
+        seq=self.seq_y if y else self.seq_x
+        return seq.textify(tok_ids, sep=sep)
+
     @classmethod
     def create(cls, seq_x:SeqData, seq_y:SeqData, min_ntoks:int, max_ntoks:int, remove_unk:bool=False, valid:bool=False,
                train_seq2seq_xvocab:Vocab=None, train_seq2seq_yvocab:Vocab=None):
@@ -168,32 +164,16 @@ class Seq2SeqDataset(Dataset):
 
         if not valid:
             # initialixze sequences again because some tokens might be removed completely
-            seq_x = SeqData.create(seq_x.texts, seq_x.max_vocab, seq_x.min_freq, seq_x.TOK_XX, seq_x.tokenizer,
+            seq_x = SeqData.create(seq_x.texts, seq_x.tokenizer, seq_x.max_vocab, seq_x.min_freq, seq_x.TOK_XX,
                                    add_EOS=False)
-            seq_y = SeqData.create(seq_y.texts, seq_y.max_vocab, seq_y.min_freq, seq_y.TOK_XX, seq_y.tokenizer,
+            seq_y = SeqData.create(seq_y.texts, seq_y.tokenizer, seq_y.max_vocab, seq_y.min_freq, seq_y.TOK_XX,
                                    add_EOS=False)
         else:
-            seq_x = SeqData.create(seq_x.texts, seq_x.max_vocab, seq_x.min_freq, seq_x.TOK_XX, seq_x.tokenizer,
+            seq_x = SeqData.create(seq_x.texts, seq_x.tokenizer, seq_x.max_vocab, seq_x.min_freq, seq_x.TOK_XX,
                                    train_seq2seq_xvocab, add_EOS=False)
-            seq_y = SeqData.create(seq_y.texts, seq_y.max_vocab, seq_y.min_freq, seq_y.TOK_XX, seq_y.tokenizer,
+            seq_y = SeqData.create(seq_y.texts, seq_y.tokenizer, seq_y.max_vocab, seq_y.min_freq, seq_y.TOK_XX,
                                    train_seq2seq_yvocab, add_EOS=False)
         return cls(seq_x, seq_y, min_ntoks, max_ntoks)
-
-
-def to_padded_tensor(sequences:tuple, pad_end:bool=True, pad_idx:int=TOK_XX.PAD_id, transpose:bool=True, device:str='cpu'):
-    """turns sequences of token ids into tensro with padding and optionally transpose"""
-    lens = torch.tensor([len(seq) for seq in sequences], device=device)
-    max_len = max(lens)
-    tens = torch.zeros(len(sequences), max_len, device=device).long() + pad_idx
-    for i, toks in enumerate(sequences):
-        if pad_end:
-            tens[i, 0:len(toks)] = torch.tensor(toks)
-        else:
-            tens[i, -len(toks):] = torch.tensor(toks)
-    if transpose:
-        tens = tens.transpose(0, 1)
-
-    return tens, lens
 
 
 class Seq2SeqDataManager():
@@ -207,11 +187,27 @@ class Seq2SeqDataManager():
         self.itos_x=self.train_seq2seq.seq_x.vocab.itos
         self.itos_y=self.train_seq2seq.seq_y.vocab.itos
 
+    @staticmethod
+    def _to_padded_tensor(sequences:tuple, pad_end:bool=True, pad_idx:int=TOK_XX.PAD_id, transpose:bool=True,
+                          device:str='cpu'):
+        """turns sequences of token ids into tensor with padding and optionally transpose"""
+        lens = torch.tensor([len(seq) for seq in sequences], device=device)
+        max_len = max(lens)
+        tens = torch.zeros(len(sequences), max_len, device=device).long() + pad_idx
+        for i, toks in enumerate(sequences):
+            if pad_end:
+                tens[i, 0:len(toks)] = torch.tensor(toks)
+            else:
+                tens[i, -len(toks):] = torch.tensor(toks)
+        if transpose:
+            tens = tens.transpose(0, 1)
+        return tens, lens
+
     def _collate_fn(self, data:list):
         data.sort(key=lambda x: len(x[0]), reverse=True)
         input_seq, target_seq = zip(*data)
-        input_tens, input_lens = to_padded_tensor(input_seq, device=self.device)
-        target_tens, target_lens = to_padded_tensor(target_seq, device=self.device)
+        input_tens, input_lens = self._to_padded_tensor(input_seq, device=self.device)
+        target_tens, target_lens = self._to_padded_tensor(target_seq, device=self.device)
         return input_tens, input_lens, target_tens, target_lens
 
     def get_dataloaders(self, train_batch_size:int=10, valid_batch_size:int=1, device:str='cpu'):
@@ -223,19 +219,24 @@ class Seq2SeqDataManager():
         valid_dataloader = DataLoader(self.valid_seq2seq, batch_size=self.valid_batch_size, collate_fn=self._collate_fn)
         return train_dataloader, valid_dataloader
 
+    def textify(self, tok_ids:list, train:bool=True, y:bool=True, sep:str=' '):
+        seq=self.train_seq2seq if train else self.valid_seq2seq
+        return seq.textify(tok_ids, y, sep)
+
     @classmethod
-    def create(cls, train_x: pd.Series, train_y:pd.Series, valid_x:pd.Series, valid_y:pd.Series, min_freq:int=2,
-               max_vocab:int=60000, min_ntoks:int=1, max_ntoks:int=7, TOK_XX:TOK_XX=TOK_XX,
-               tokenizer:Tokenizer=Tokenizer, device:str='cpu'):
-        train_seq_x = SeqData.create(train_x, max_vocab, min_freq, TOK_XX, tokenizer)
-        train_seq_y = SeqData.create(train_y, max_vocab, min_freq, TOK_XX, tokenizer)
+    def create(cls, train_x: pd.Series, train_y:pd.Series, valid_x:pd.Series, valid_y:pd.Series, lang_x:str, lang_y:str,
+               min_freq:int=2, max_vocab:int=60000, min_ntoks:int=1, max_ntoks:int=7, TOK_XX:TOK_XX=TOK_XX,
+               device:str='cpu'):
+        tokenizer_x=Tokenizer(lang_x)
+        tokenizer_y=Tokenizer(lang_y)
+        train_seq_x = SeqData.create(train_x, tokenizer_x, max_vocab, min_freq, TOK_XX)
+        train_seq_y = SeqData.create(train_y, tokenizer_y, max_vocab, min_freq, TOK_XX)
 
         if len(train_seq_y.toks_id) != len(train_seq_x.toks_id):
-            print('source and target sequences have different lengths')
-            return
+            raise ValueError('source and target sequences have different number of documents/texts')
 
-        valid_seq_x = SeqData.create(valid_x, max_vocab, min_freq, TOK_XX, tokenizer, train_seq_x.vocab)
-        valid_seq_y = SeqData.create(valid_y, max_vocab, min_freq, TOK_XX, tokenizer, train_seq_y.vocab)
+        valid_seq_x = SeqData.create(valid_x, tokenizer_x, max_vocab, min_freq, TOK_XX, train_seq_x.vocab)
+        valid_seq_y = SeqData.create(valid_y, tokenizer_y, max_vocab, min_freq, TOK_XX, train_seq_y.vocab)
 
         train_seq2seq = Seq2SeqDataset.create(train_seq_x, train_seq_y, min_ntoks, max_ntoks)
         valid_seq2seq = Seq2SeqDataset.create(valid_seq_x, valid_seq_y, min_ntoks, max_ntoks, False, True,
@@ -243,8 +244,8 @@ class Seq2SeqDataManager():
         return cls(train_seq2seq, valid_seq2seq, device, max_ntoks)
 
     @classmethod
-    def create_from_txt(cls, train_filename:str, valid_filename:str=None, min_freq:int=2, max_vocab:int=60000,
-                        min_ntoks:int=1, max_ntoks:int=7, TOK_XX:TOK_XX=TOK_XX, tokenizer:Tokenizer=Tokenizer,
+    def create_from_txt(cls, train_filename:str, lang_x:str, lang_y:str, valid_filename:str=None, min_freq:int=2,
+                        max_vocab:int=60000, min_ntoks:int=1, max_ntoks:int=7, TOK_XX:TOK_XX=TOK_XX,
                         valid_perc:float=.1, seed:int=1, switch_pair:bool=True, device:str='cpu'):
         """if valid has filename loads validation set from there, otherwise makes valid set from train set using
         valid perc"""
@@ -271,5 +272,5 @@ class Seq2SeqDataManager():
             train_x = train_x[rands > valid_perc]
             train_y = train_y[rands > valid_perc]
 
-        return cls.create(train_x, train_y, valid_x, valid_y, min_freq, max_vocab, min_ntoks, max_ntoks, TOK_XX,
-                          tokenizer, device)
+        return cls.create(train_x, train_y, valid_x, valid_y, lang_x, lang_y, min_freq, max_vocab, min_ntoks, max_ntoks,
+                          TOK_XX, device)
