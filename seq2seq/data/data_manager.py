@@ -2,7 +2,8 @@ import collections, torch
 import numpy as np
 import pandas as pd
 from torch.utils.data import Dataset, DataLoader
-from seq2seq.data.tokenizer import Tokenizer, normalize_string, TOK_XX
+from seq2seq.data.tokenizer import Tokenizer, TOK_XX
+from seq2seq.data.utils import normalize_string
 
 
 class Vocab():

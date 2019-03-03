@@ -7,7 +7,8 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 
 from seq2seq.data.data_manager import Seq2SeqDataManager
-from seq2seq.data.tokenizer import TOK_XX, normalize_string
+from seq2seq.data.tokenizer import TOK_XX
+from seq2seq.data.utils import normalize_string
 from seq2seq.model.decoder import LuongAttnDecoderRNN
 from seq2seq.model.encoder import EncoderRNN
 from seq2seq.utils.masked_cross_entropy import masked_cross_entropy

@@ -1,5 +1,4 @@
-import os, re, unicodedata, spacy
-from pathlib import Path
+import os, re, spacy
 
 from spacy.symbols import ORTH
 from concurrent.futures import ThreadPoolExecutor
@@ -19,7 +18,7 @@ class TOK_XX:
     BOS_id = TOK_XX_ids[BOS]
     EOS_id = TOK_XX_ids[EOS]
 
-#todo check if all funcs needed
+
 def partition(a, sz):
     """splits iterables a in equal parts of size sz"""
     return [a[i:i + sz] for i in range(0, len(a), sz)]
@@ -48,6 +47,7 @@ class Tokenizer:
         return self.re_br.sub("\n", x)
 
     def spacy_tok(self, x:str):
+        #this function splits texts
         return [t.text for t in self.tok.tokenizer(self.sub_br(x))]
         # simple split
         #return [t for t in (self.sub_br(x).split())]
@@ -94,24 +94,4 @@ class Tokenizer:
             return sum(e.map(self.proc_all, strings), [])
 
 
-def unicode_to_ascii(string:str):
-    return ''.join(
-        c for c in unicodedata.normalize('NFD', string)
-        if unicodedata.category(c) != 'Mn' )
 
-
-def normalize_string(string:str):
-    """ trim, and remove non-letter characters"""
-    #string = unicode_to_ascii(string.lower().strip())
-    string = unicode_to_ascii(string.strip())
-    string = re.sub(r"([,.!?])", r" \1 ", string)
-    string = re.sub(r"[^a-zA-Z,.!?]+", r" ", string)
-    string = re.sub(r"\s+", r" ", string).strip()
-    return string
-
-
-def read_pairs_txt(filename:Path):
-    lines = open(filename).read().strip().split('\n')
-    # Split every line into pairs and normalize
-    pairs = [[normalize_string(s) for s in l.split('\t')] for l in lines]
-    return pairs
