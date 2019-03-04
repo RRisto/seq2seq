@@ -57,7 +57,7 @@ class BahdanauAttnDecoderRNN(nn.Module):
                     wgts[i] = torch.from_numpy(list(emb_vecs[w]))
                 except:
                     miss.append(w)
-            print(len(miss), miss[5:10])
+            print(f'Decoder embedding vector didnt have {len(miss)} tokens, example {miss[5:10]}')
         return emb
 
 
@@ -123,6 +123,6 @@ class LuongAttnDecoderRNN(nn.Module):
                     wgts[i] = torch.from_numpy(list(emb_vecs[w]))
                 except:
                     miss.append(w)
-            print(len(miss), miss[5:10])
+            print(f'Decoder embedding vector didnt have {len(miss)} tokens, example {miss[5:10]}')
         return emb
 

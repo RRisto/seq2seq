@@ -23,7 +23,7 @@ class EncoderRNN(nn.Module):
                     wgts[i] = torch.from_numpy(list(emb_vecs[w]))
                 except:
                     miss.append(w)
-            print(len(miss), miss[5:10])
+            print(f'Encoder embedding vector didnt have {len(miss)} tokens, example {miss[5:10]}')
         return emb
 
     def forward(self, input_seqs:torch.tensor, input_lengths:torch.tensor, hidden:torch.tensor=None):
