@@ -13,7 +13,8 @@ data_manager = Seq2SeqDataManager.create_from_txt('data/eng-fra_sub.txt','en', '
 
 hidden_size=50
 learner=Seq2seqLearner(data_manager,hidden_size)
-learner.fit(20, show_attention_every=5)
+#learner.fit(20, show_attention_every=5)
+learner.fit(2, show_attention_every=5)
 
 original_xtext = 'Je suis sûr.'
 original_ytext = 'I am sure.'

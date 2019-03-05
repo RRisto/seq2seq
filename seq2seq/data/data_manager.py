@@ -68,7 +68,7 @@ class SeqData():
 
     def numericalize(self, text:str):
         text = add_special_strings([text], self.TOK_XX.BOS, self.TOK_XX.EOS)
-        toks = self.tokenizer.proc_all_mp([[text[0]]])
+        toks = self.tokenizer.proc_all_mp([text[0]])
         toks = self.vocab.numericalize(toks[0])
         return toks
 
@@ -118,7 +118,7 @@ class SeqData():
                vocab:Vocab=None, add_EOS:bool=True):
         if add_EOS:
             texts = add_special_strings(texts, None, TOK_XX.EOS)
-        toks = tokenizer.proc_all_mp([texts])
+        toks = tokenizer.proc_all_mp(texts.tolist())
         if vocab is None:
             vocab = Vocab.create(toks, max_vocab, min_freq, TOK_XX)
         toks_id = np.array([vocab.numericalize(text) for text in toks])

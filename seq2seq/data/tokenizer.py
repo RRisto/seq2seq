@@ -24,8 +24,8 @@ def partition(a, sz):
     return [a[i:i + sz] for i in range(0, len(a), sz)]
 
 
-def partition_by_cores(a):
-    return partition(a, len(a) // num_cpus() + 1)
+def partition_by_cores(a, ncpus):
+    return partition(a, len(a) // ncpus)
 
 
 def num_cpus():
@@ -76,8 +76,8 @@ class Tokenizer:
         return ''.join(res)
 
     def proc_text(self, string:str):
-        string = self.re_rep.sub(Tokenizer.replace_rep, string)
-        string = self.re_word_rep.sub(Tokenizer.replace_wrep, string)
+        string = self.re_rep.sub(self.replace_rep, string)
+        string = self.re_word_rep.sub(self.replace_wrep, string)
         string = self.do_caps(string)
         string = re.sub(r'([/#])', r' \1 ', string)
         string = re.sub(' {2,}', ' ', string)
@@ -91,7 +91,9 @@ class Tokenizer:
         if ncpus == 0:
             ncpus = 1
         with ThreadPoolExecutor(ncpus) as e:
-            return sum(e.map(self.proc_all, strings), [])
+            #return sum(e.map(self.proc_all, strings), [])
+            return sum(e.map(self.proc_all, partition_by_cores(strings, ncpus)), [])
+
 
 
 
