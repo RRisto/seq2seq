@@ -20,7 +20,7 @@ class Seq2seqLearner(nn.Module):
         """
         initilizes learner object, if embeddings are added uses embeddings. It is important thet embeddings size and
         hidden size match!
-        Wordvecotrs could come from direct intput (dict) or from datamanager (which loads vecotrs only needed for
+        Wordvectors could come from direct intput (dict) or from datamanager (which loads vecotrs only needed for
          current vocabulary
         """
         super(Seq2seqLearner, self).__init__()
@@ -28,6 +28,7 @@ class Seq2seqLearner(nn.Module):
         self.n_layers=n_layers
         self.dropout=dropout
         self.data_manager=data_manager
+        self.max_len = self.data_manager.max_ntoks
         self.attn_model=attn_model
         emb_vecs_x=data_manager.vectors_x if emb_vecs_x is None else emb_vecs_x
         emb_vecs_y=data_manager.vectors_y if emb_vecs_y is None else emb_vecs_y
@@ -91,7 +92,6 @@ class Seq2seqLearner(nn.Module):
         self.valid_batch_size=valid_batch_size
         self.clip=clip
         self.teacher_forcing_ratio=teacher_forcing_ratio
-        self.max_len=self.data_manager.max_ntoks
         self.show_attention_idxs=show_attention_idxs
         self.show_attention_every=show_attention_every
 

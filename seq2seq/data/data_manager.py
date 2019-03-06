@@ -1,4 +1,6 @@
 import collections, torch
+import pickle
+
 import numpy as np
 import pandas as pd
 from torch.utils.data import Dataset, DataLoader
@@ -173,9 +175,11 @@ class Seq2SeqDataset(Dataset):
 class Seq2SeqDataManager():
     """class to manage x and y strain and validation sequences creation. Helps to create dataloaders"""
 
-    def __init__(self, train_seq2seq:Seq2SeqDataset, valid_seq2seq:Seq2SeqDataset, device:str, max_ntoks:int):
+    def __init__(self, train_seq2seq:Seq2SeqDataset, valid_seq2seq:Seq2SeqDataset, lang_x:str, lang_y:str, device:str, max_ntoks:int):
         self.train_seq2seq = train_seq2seq
         self.valid_seq2seq = valid_seq2seq
+        self.lang_x=lang_x
+        self.lang_y=lang_y
         self.device = device
         self.max_ntoks=max_ntoks
         self.itos_x=self.train_seq2seq.seq_x.vocab.itos
@@ -225,6 +229,26 @@ class Seq2SeqDataManager():
         if filename_y is not None:
             self.vectors_y=load_ft_vectors(filename_y, self.itos_y)
 
+    def save(self, filename:str):
+        #this is needed because spacy tokenizer has some issues with pickling
+        self.train_seq2seq.seq_x.tokenizer=None
+        self.train_seq2seq.seq_y.tokenizer=None
+        self.valid_seq2seq.seq_x.tokenizer=None
+        self.valid_seq2seq.seq_y.tokenizer=None
+        f = open(filename, 'wb')
+        pickle.dump(self, f, pickle.HIGHEST_PROTOCOL)
+        f.close()
+
+    @staticmethod
+    def load(filename:str):
+        with open(filename, 'rb') as f:
+            data_manager=pickle.load(f)
+            data_manager.train_seq2seq.seq_x.tokenizer = Tokenizer(data_manager.lang_x)
+            data_manager.train_seq2seq.seq_y.tokenizer = Tokenizer(data_manager.lang_y)
+            data_manager.valid_seq2seq.seq_x.tokenizer = Tokenizer(data_manager.lang_x)
+            data_manager.valid_seq2seq.seq_y.tokenizer = Tokenizer(data_manager.lang_y)
+            return data_manager
+
     @classmethod
     def create(cls, train_x: pd.Series, train_y:pd.Series, valid_x:pd.Series, valid_y:pd.Series, lang_x:str, lang_y:str,
                min_freq:int=2, max_vocab:int=60000, min_ntoks:int=1, max_ntoks:int=7, TOK_XX:TOK_XX=TOK_XX,
@@ -243,7 +267,7 @@ class Seq2SeqDataManager():
         train_seq2seq = Seq2SeqDataset.create(train_seq_x, train_seq_y, min_ntoks, max_ntoks)
         valid_seq2seq = Seq2SeqDataset.create(valid_seq_x, valid_seq_y, min_ntoks, max_ntoks, False, True,
                                               train_seq2seq.seq_x.vocab, train_seq2seq.seq_y.vocab)
-        return cls(train_seq2seq, valid_seq2seq, device, max_ntoks)
+        return cls(train_seq2seq, valid_seq2seq, lang_x, lang_y, device, max_ntoks)
 
     @classmethod
     def create_from_txt(cls, train_filename:str, lang_x:str, lang_y:str, valid_filename:str=None, min_freq:int=2,
