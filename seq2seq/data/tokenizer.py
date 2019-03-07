@@ -63,12 +63,12 @@ class Tokenizer:
 
     @staticmethod
     def replace_wrep(m):
-        TK_WREP = 'tk_wrep'
+        TK_WREP = '<tk_wrep>'
         c, cc = m.groups()
         return f' {TK_WREP} {len(cc.split()) + 1} {c} '
 
     def do_caps(self, ss:str):
-        TOK_UP, TOK_SENT, TOK_MIX = ' t_up ', ' t_st ', ' t_mx '
+        TOK_UP, TOK_SENT, TOK_MIX = ' <t_up> ', ' <t_st> ', ' <t_mx> '
         res = []
         for s in re.findall(r'\w+|\W+', ss):
             res += ([TOK_UP, s.lower()] if (s.isupper() and (len(s) > 2))
@@ -91,7 +91,6 @@ class Tokenizer:
         if ncpus == 0:
             ncpus = 1
         with ThreadPoolExecutor(ncpus) as e:
-            #return sum(e.map(self.proc_all, strings), [])
             return sum(e.map(self.proc_all, partition_by_cores(strings, ncpus)), [])
 
 

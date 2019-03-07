@@ -111,7 +111,7 @@ class SeqData():
             if valid and train_vocab is not None:
                 self.vocab = train_vocab
 
-            print(f'kept {sum(idxs_to_keep)} sequences from {n_seq_original} sequences')
+            print(f'    kept {sum(idxs_to_keep)} sequences from {n_seq_original} sequences')
         else:
             print('You must have max_len and min_len values set or idx_to_keep set')
 
@@ -157,10 +157,12 @@ class Seq2SeqDataset(Dataset):
     @classmethod
     def create(cls, seq_x:SeqData, seq_y:SeqData, min_ntoks:int, max_ntoks:int, remove_unk:bool=False, valid:bool=False,
                train_seq2seq_xvocab:Vocab=None, train_seq2seq_yvocab:Vocab=None):
+        print('  Checking x sequence match to max, min criterias')
         idxs_to_keep = seq_x.ids_to_keep(max_ntoks, min_ntoks, remove_unk)
         seq_x.remove(idxs_to_keep=idxs_to_keep, valid=valid, train_vocab=train_seq2seq_xvocab)
         seq_y.remove(idxs_to_keep=idxs_to_keep, valid=valid, train_vocab=train_seq2seq_yvocab)
 
+        print('  Checking y sequence match to max, min criterias')
         idxs_to_keep = seq_y.ids_to_keep(max_ntoks, min_ntoks, remove_unk)
         seq_x.remove(idxs_to_keep=idxs_to_keep, valid=valid, train_vocab=train_seq2seq_xvocab)
         seq_y.remove(idxs_to_keep=idxs_to_keep, valid=valid, train_vocab=train_seq2seq_yvocab)
@@ -264,7 +266,9 @@ class Seq2SeqDataManager():
         valid_seq_x = SeqData.create(valid_x, tokenizer_x, max_vocab, min_freq, TOK_XX, train_seq_x.vocab)
         valid_seq_y = SeqData.create(valid_y, tokenizer_y, max_vocab, min_freq, TOK_XX, train_seq_y.vocab)
 
+        print('Creating training dataset')
         train_seq2seq = Seq2SeqDataset.create(train_seq_x, train_seq_y, min_ntoks, max_ntoks)
+        print('Creating valid dataset')
         valid_seq2seq = Seq2SeqDataset.create(valid_seq_x, valid_seq_y, min_ntoks, max_ntoks, False, True,
                                               train_seq2seq.seq_x.vocab, train_seq2seq.seq_y.vocab)
         return cls(train_seq2seq, valid_seq2seq, lang_x, lang_y, device, max_ntoks)
