@@ -241,6 +241,11 @@ class Seq2SeqDataManager():
         pickle.dump(self, f, pickle.HIGHEST_PROTOCOL)
         f.close()
 
+        self.train_seq2seq.seq_x.tokenizer = Tokenizer(self.lang_x)
+        self.train_seq2seq.seq_y.tokenizer = Tokenizer(self.lang_y)
+        self.valid_seq2seq.seq_x.tokenizer = Tokenizer(self.lang_x)
+        self.valid_seq2seq.seq_y.tokenizer = Tokenizer(self.lang_y)
+
     @staticmethod
     def load(filename:str):
         with open(filename, 'rb') as f:

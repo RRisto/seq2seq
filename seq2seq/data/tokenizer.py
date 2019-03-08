@@ -18,14 +18,15 @@ class TOK_XX:
     BOS_id = TOK_XX_ids[BOS]
     EOS_id = TOK_XX_ids[EOS]
 
-
+#these functions are mostly from fastai, made only minor changes
 def partition(a, sz):
     """splits iterables a in equal parts of size sz"""
     return [a[i:i + sz] for i in range(0, len(a), sz)]
 
 
 def partition_by_cores(a, ncpus):
-    return partition(a, len(a) // ncpus)
+    sz=(len(a) // ncpus) or 1 #if ncpus is more than len(a)
+    return partition(a, sz)
 
 
 def num_cpus():

@@ -195,13 +195,14 @@ class Seq2seqLearner(nn.Module):
             df_attentions.index = output_words
             df_attentions.columns = input_sentence.split(' ')
 
+            print(f'Input: {input_sentence}')
+            print(f'Target: {target_sentence}')
             ax = sns.heatmap(df_attentions, cmap='Blues', robust=True, cbar=False, cbar_kws={"orientation": "horizontal"})
             ax.xaxis.tick_top()  # x axis on top
             ax.xaxis.set_label_position('top')
             ax.set_xlabel('input')
             ax.set_ylabel('output')
             plt.yticks(rotation=0)
-            plt.title(f'Input: {input_sentence} \n target: {target_sentence}')
             plt.tight_layout()
             plt.show()
             plt.close()
@@ -210,6 +211,7 @@ class Seq2seqLearner(nn.Module):
     def predict(self, text:str, device:str='cpu'):
         self.encoder.train(False)
         self.decoder.train(False)
+        self.to(device)
         text = normalize_string(text)
         input_toks_id = self.data_manager.train_seq2seq.seq_x.numericalize(text)
         input_batch, input_length = self.data_manager._to_padded_tensor([input_toks_id], device=device)
