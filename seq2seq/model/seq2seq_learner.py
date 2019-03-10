@@ -62,7 +62,7 @@ class Seq2seqLearner(nn.Module):
 
             all_decoder_outputs[t] = decoder_output
             if train:
-                if random.random() > self.teacher_forcing_ratio:
+                if random.random() < self.teacher_forcing_ratio:
                     decoder_input = target_batches[t]  # Next in
                 else:
                     decoder_input = decoder_output.data.max(1)[1]
