@@ -1,4 +1,4 @@
-import torch, time
+import torch, time, random
 import torch.nn as nn
 from torch import optim
 import pandas as pd
@@ -61,7 +61,10 @@ class Seq2seqLearner(nn.Module):
                 decoder_input, decoder_hidden, encoder_outputs)
 
             all_decoder_outputs[t] = decoder_output
-            decoder_input = target_batches[t]  # Next in
+            if random.random() > self.teacher_forcing_ratio:
+                decoder_input = target_batches[t]  # Next in
+            else:
+                decoder_input = decoder_output.data.max(1)[1]
 
             if return_attention:
                 decoder_attentions[:, t, :decoder_attention.size(2)] += decoder_attention.squeeze(1).cpu().data
