@@ -39,7 +39,7 @@ class Seq2seqLearner(nn.Module):
 
 
     def forward(self, input_batches:torch.tensor, input_lengths:torch.tensor, target_batches:torch.tensor,
-                target_lengths:torch.tensor, return_attention:bool=False, device:str='cpu'):
+                target_lengths:torch.tensor, device:str='cpu', train=True):
 
         encoder_outputs, encoder_hidden = self.encoder(input_batches, input_lengths, None)
         # Prepare input and output variables
@@ -50,7 +50,7 @@ class Seq2seqLearner(nn.Module):
         max_target_length = max(target_lengths)
         all_decoder_outputs = torch.zeros(max_target_length, batch_size, self.decoder.output_size, device=device)
 
-        if return_attention:
+        if not train:
             # Store output words and attention states
             decoded_words = [[] for _ in range(batch_size)]
             decoder_attentions = torch.zeros(batch_size, self.max_len + 1, self.max_len + 1)
@@ -61,12 +61,13 @@ class Seq2seqLearner(nn.Module):
                 decoder_input, decoder_hidden, encoder_outputs)
 
             all_decoder_outputs[t] = decoder_output
-            if random.random() > self.teacher_forcing_ratio:
-                decoder_input = target_batches[t]  # Next in
-            else:
-                decoder_input = decoder_output.data.max(1)[1]
+            if train:
+                if random.random() > self.teacher_forcing_ratio:
+                    decoder_input = target_batches[t]  # Next in
+                else:
+                    decoder_input = decoder_output.data.max(1)[1]
 
-            if return_attention:
+            else:
                 decoder_attentions[:, t, :decoder_attention.size(2)] += decoder_attention.squeeze(1).cpu().data
                 # Choose top word from output
                 topv, topi = decoder_output.data.topk(1)
@@ -79,14 +80,14 @@ class Seq2seqLearner(nn.Module):
                 # Next input is chosen word
                 decoder_input = topi.squeeze().clone().detach()
 
-        if return_attention:
+        if not train:
                 all_decoder_outputs=all_decoder_outputs, decoder_attentions[:, :t + 1, :len(encoder_outputs)], decoded_words
 
         return all_decoder_outputs
 
     def fit(self, n_epochs:int, learning_rate:float = 0.001, decoder_learning_ratio:float = 5.0, train_batch_size:int=100,
             valid_batch_size:int=100, clip:float = 50.0, teacher_forcing_ratio:float = 0.5, show_attention_every:int=5,
-            device:str='cpu', show_attention_idxs:list=[0,1]):
+            device:str='cpu', show_attention_idxs:list=[0]):
         """show_attention_idxs contains list of idx from validation batch which attentions are shown"""
         self.n_epochs=n_epochs
         self.learning_rate=learning_rate
@@ -155,7 +156,7 @@ class Seq2seqLearner(nn.Module):
                                                                                           val_input_lengths,
                                                                                           val_target_batches,
                                                                                           val_target_lengths,
-                                                                                          True, device)
+                                                                                          device, False)
                 with torch.no_grad():
                     loss_valid = self.loss_func(
                         val_all_decoder_outputs.transpose(0, 1).contiguous(),  # -> batch x seq
