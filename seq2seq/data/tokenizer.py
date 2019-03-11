@@ -50,8 +50,6 @@ class Tokenizer:
     def spacy_tok(self, x:str):
         #this function splits texts
         return [t.text for t in self.tok.tokenizer(self.sub_br(x))]
-        # simple split
-        #return [t for t in (self.sub_br(x).split())]
 
     re_rep = re.compile(r'(\S)(\1{3,})')
     re_word_rep = re.compile(r'(\b\w+\W+)(\1{3,})')
@@ -69,7 +67,7 @@ class Tokenizer:
         return f' {TK_WREP} {len(cc.split()) + 1} {c} '
 
     def do_caps(self, ss:str):
-        TOK_UP, TOK_SENT, TOK_MIX = ' <t_up> ', ' <t_st> ', ' <t_mx> '
+        TOK_UP = ' <t_up> '
         res = []
         for s in re.findall(r'\w+|\W+', ss):
             res += ([TOK_UP, s.lower()] if (s.isupper() and (len(s) > 2))
