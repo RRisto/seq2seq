@@ -1,4 +1,4 @@
-## Simple batched seq2seq example
+## Updated batched seq2seq example
 
 This is my version of pytorch [seq2seq tutorial](https://github.com/spro/practical-pytorch/blob/master/seq2seq-translation/seq2seq-translation-batched.ipynb).
 
@@ -11,8 +11,9 @@ New features:
         - learner class for model creation and training
 - data tokenization is multicored
 - possibility to use pretrained wordvectors
+- added teacher forcing
     
-For more details, explanations see article.
+For more details, explanations see my [article](https://medium.com/@RistoHinno/tuned-version-of-seq2seq-tutorial-ddb64db46e2a).
     
 See example in example_seq2seq.ipynb. Example data is from IMDB [dataset](https://course.fast.ai/datasets#nlp).
 
